@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:turbo": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "register:parent": "node --env-file=.env.local --import tsx scripts/register-parent.ts",
-    "issue:subname": "node --env-file=.env.local --import tsx scripts/issue-subname.ts"
+    "issue:subname": "node --env-file=.env.local --import tsx scripts/issue-subname.ts",
+    "resolve": "node --env-file=.env.local --import tsx scripts/resolve.ts"
   },
   "dependencies": {
     "@privy-io/react-auth": "^2.0.0",

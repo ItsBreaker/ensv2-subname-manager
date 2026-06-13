@@ -337,3 +337,56 @@ export const permissionedRegistryAbi = [
     outputs: [],
   },
 ] as const;
+
+/**
+ * Resolver records interface — unchanged between ENS v1 and v2 (architecture doc interop note), so
+ * the same setAddr/setText/multicall work on the v2 per-account (Owned/Permissioned) resolver.
+ * Keyed by `node` = namehash(name). Mirrors ens-cli `publicResolverAbi`, plus read getters.
+ */
+export const publicResolverAbi = [
+  {
+    name: "addr",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "node", type: "bytes32" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "text",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "node", type: "bytes32" },
+      { name: "key", type: "string" },
+    ],
+    outputs: [{ name: "", type: "string" }],
+  },
+  {
+    name: "setAddr",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "node", type: "bytes32" },
+      { name: "a", type: "address" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "setText",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "node", type: "bytes32" },
+      { name: "key", type: "string" },
+      { name: "value", type: "string" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "multicall",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "data", type: "bytes[]" }],
+    outputs: [{ name: "", type: "bytes[]" }],
+  },
+] as const;
