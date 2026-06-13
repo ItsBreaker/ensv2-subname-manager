@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "register:parent": "node --env-file=.env.local --import tsx scripts/register-parent.ts"
   },
   "dependencies": {
     "@privy-io/react-auth": "^2.0.0",
@@ -22,6 +23,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
 }

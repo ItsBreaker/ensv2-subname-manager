@@ -1,4 +1,4 @@
-import { LoginButton } from "@/components/LoginButton";
+import { GoldenPath } from "@/components/GoldenPath";
 import { InfoTip } from "@/components/InfoTip";
 import { CONTRACTS } from "@/lib/contracts";
 
@@ -35,7 +35,7 @@ export default function Home() {
       </p>
 
       <div style={{ margin: "28px 0 40px" }}>
-        <LoginButton />
+        <GoldenPath />
       </div>
 
       <section
