@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { OffchainIssuer, type IssuedSubname } from "@/lib/ens/issuer";
+import { useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import type { Session } from "@/hooks/useSession";
 import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
@@ -17,33 +17,43 @@ function shortAddress(address: string): string {
 }
 
 type IssueStatus = "idle" | "issuing" | "done" | "error";
+type IssueResult = { fqdn: string; txHash: string };
 
 /**
- * The manager shell — where a logged-in member lands (architecture doc §3). Phase 1 scope:
- * show the unified session, the org-eligibility match, and the issue control. The actual
- * issue call goes through the OffchainIssuer interface; until NameStone is wired it surfaces
- * a clear "not connected yet" state, proving the path end-to-end without the backend.
+ * The manager shell — where a logged-in member lands (architecture doc §3). Shows the unified
+ * session, the org-eligibility match, and the issue control. Claiming calls POST /api/issue, which
+ * verifies eligibility (Privy token → verified domain → enrolled org) server-side and has the
+ * platform's manager key mint the real onchain subname to the member's wallet.
  */
 export function Manager({ session }: { session: Session }) {
   const { email, verifiedEmailDomain, address, org, logout } = session;
+  const { getAccessToken } = usePrivy();
 
   const [label, setLabel] = useState(() => defaultLabel(email));
   const [status, setStatus] = useState<IssueStatus>("idle");
-  const [result, setResult] = useState<IssuedSubname | null>(null);
+  const [result, setResult] = useState<IssueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const issuer = useMemo(() => new OffchainIssuer(), []);
   const fqdn = org && label ? `${label}.${org.parent}` : null;
-  const canIssue = Boolean(org && address && label) && status !== "issuing";
+  const canIssue = Boolean(org && label) && status !== "issuing";
 
   async function handleIssue() {
-    if (!org || !address || !label) return;
+    if (!org || !label) return;
     setStatus("issuing");
     setError(null);
     setResult(null);
     try {
-      const issued = await issuer.issue({ parent: org.parent, label, owner: address });
-      setResult(issued);
+      const token = await getAccessToken();
+      const res = await fetch("/api/issue", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ label }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string } & Partial<IssueResult>;
+      if (!res.ok || !data.ok || !data.fqdn || !data.txHash) {
+        throw new Error(data.error ?? `Request failed (${res.status})`);
+      }
+      setResult({ fqdn: data.fqdn, txHash: data.txHash });
       setStatus("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -95,7 +105,7 @@ export function Manager({ session }: { session: Session }) {
           </div>
           <p className={styles.cardText}>
             Your email domain <code>{verifiedEmailDomain}</code> is linked to{" "}
-            <strong>{org.parent}</strong>. You can claim a free name under it.
+            <strong>{org.parent}</strong>. You can claim your own name under it.
           </p>
 
           <div className={styles.issueRow}>
@@ -113,18 +123,26 @@ export function Manager({ session }: { session: Session }) {
               {status === "issuing" ? "Claiming…" : "Claim my name"}
             </button>
             <InfoTip>
-              Gives you your own name under your organization, e.g. {fqdn ?? "alice.yourorg.eth"} —
-              free and instant. You can use it as your web3 username.
+              Creates {fqdn ?? "alice.yourorg.eth"} as a name you fully own on the blockchain. Your
+              organization covers the small network fee — it takes a few seconds to confirm.
             </InfoTip>
           </div>
 
           {status === "done" && result && (
-            <p className={styles.success}>🎉 Claimed {result.fqdn}</p>
+            <p className={styles.success}>
+              🎉 Claimed {result.fqdn} —{" "}
+              <a
+                href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                view transaction
+              </a>
+            </p>
           )}
           {status === "error" && (
             <p className={styles.notice}>
-              Issuance isn&apos;t connected yet (offchain NameStone backend is stubbed). The flow is
-              wired — this is the placeholder response:
+              Couldn&apos;t claim your name:
               <br />
               <span className={styles.mono}>{error}</span>
             </p>
