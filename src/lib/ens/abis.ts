@@ -217,3 +217,123 @@ export const v2RegistryAbi = [
     outputs: [],
   },
 ] as const;
+
+/**
+ * ENSv2 PermissionedRegistry interface used for onchain subname issuance. Mirrored from
+ * ensdomains/namechain (contracts-v2): IStandardRegistry, IRegistry, IEnhancedAccessControl.
+ *
+ * The `.eth` registry (CONTRACTS.PermissionedRegistry) holds 2LDs; each 2LD points at its own
+ * subregistry (a UserRegistry) via setSubregistry, and subnames are minted by calling register()
+ * on that subregistry. Note the asymmetry: getters take the child `label` (string), setters take
+ * `anyId` (uint256 = labelhash(label)).
+ */
+export const permissionedRegistryAbi = [
+  {
+    name: "register",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "label", type: "string" },
+      { name: "owner", type: "address" },
+      { name: "registry", type: "address" }, // the subname's OWN subregistry (0 if none)
+      { name: "resolver", type: "address" },
+      { name: "roleBitmap", type: "uint256" },
+      { name: "expiry", type: "uint64" },
+    ],
+    outputs: [{ name: "tokenId", type: "uint256" }],
+  },
+  {
+    name: "setSubregistry",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "anyId", type: "uint256" },
+      { name: "registry", type: "address" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "setResolver",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "anyId", type: "uint256" },
+      { name: "resolver", type: "address" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "getSubregistry",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "label", type: "string" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "getResolver",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "label", type: "string" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "getState",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "anyId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "status", type: "uint8" },
+          { name: "expiry", type: "uint64" },
+          { name: "latestOwner", type: "address" },
+          { name: "tokenId", type: "uint256" },
+          { name: "resource", type: "uint256" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ownerOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  // EnhancedAccessControl — the org-delegation primitive (grant a manager ROLE_REGISTRAR).
+  {
+    name: "grantRoles",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "resource", type: "uint256" },
+      { name: "roleBitmap", type: "uint256" },
+      { name: "account", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "hasRoles",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "resource", type: "uint256" },
+      { name: "roleBitmap", type: "uint256" },
+      { name: "account", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  // UserRegistry proxy initializer (called via VerifiableFactory.deployProxy data).
+  {
+    name: "initialize",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "admin", type: "address" },
+      { name: "roleBitmap", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;

@@ -16,12 +16,16 @@ export const CONTRACTS = {
   ETHRegistrar: "0x8c2E866B439358c41AE05De9cbE8A00BFEFafFcA",
   /** paymentToken (ERC-20) — registration payment; approve before reveal. */
   paymentToken: "0x3DfC8b53dAFa5eBbb071a8B97678Ab534Ed838D9",
-  /** resolverFactory — deploy per-account resolvers. */
-  resolverFactory: "0xd2A632D8A8b67C2c4398c255CBd7Af8Dd7236198",
+  /** resolverFactory (VerifiableFactory) — deploy per-account resolvers + subregistries.
+   *  NB: canonical EIP-55 casing; the architecture doc / ens-cli use a non-canonical casing that
+   *  viem's strict address validation rejects. Same underlying address. */
+  resolverFactory: "0xD2a632D8a8b67c2c4398c255CbD7aF8dd7236198",
   /** resolverImplementation — resolver logic implementation. */
   resolverImplementation: "0xdcE5205A553573FFd47629327DDdf36186022FfA",
-  /** resolverProxyLogic — resolver proxy logic. */
+  /** resolverProxyLogic — proxy logic for ALL VerifiableFactory proxies (resolvers + subregistries). */
   resolverProxyLogic: "0x917C561a74Df398646e06f3FFAA51DB8e8330C5A",
+  /** subregistryImplementation — UserRegistry impl; per-parent subregistry proxies point at this. */
+  subregistryImplementation: "0x0F99e7Ea74903AfCB7224d0354fD7428A6f92917",
   /** NameWrapper (v1 fallback) — guaranteed onchain issuance via setSubnodeRecord. */
   NameWrapper: "0x0635513f179D50A207757E05759CbD106d7dFcE8",
   /** UniversalResolver — canonical resolution entry point (v1 + v2). */
