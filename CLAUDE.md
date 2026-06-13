@@ -87,8 +87,15 @@ revocable by the org). Open enrollment: `orgs.open_enrollment` lets public-email
 under a typed org name. **CSV bulk import:** admins upload emails/labels (`POST /api/admin/import`) →
 rows are stored in `reservations` (a `(parent,email)` table); a member with a reservation may claim
 it on sign-in (a third eligibility path in `/api/issue`, after domain match + open org). The UI is a
-light/ENS theme (white bg, blue accent) driven by CSS variables in `globals.css`. Next: DNS/CRE admin
-proof, then subgroups (EAC).
+light/ENS theme (white bg, blue accent) driven by CSS variables in `globals.css`.
+
+**Admin proof (DNS, working):** an admin proves they control the org's domain (not just one mailbox —
+doc §2) via a DNS-TXT challenge. `POST /api/admin/verify/start` stores a `verify_token` and returns
+a `ens-subname-verify=<token>` TXT record; `POST /api/admin/verify/check` does a server-side
+`dns.resolveTxt` on the org's domain and sets `domain_verified_at` on match. Shown as a verified
+badge in the AdminConsole. Needs `orgs` columns `verify_token` + `domain_verified_at`. **Next: CRE**
+runs the same domain check across the DON → BFT consensus → on-chain authorization (the prize: a
+simulating workflow), with this DNS path as the fallback. Then subgroups (EAC).
 
 ## Build priority order
 

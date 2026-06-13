@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { toErrorResponse, verifyMember } from "@/lib/auth";
 import { getOrgByDomain, getProvisioning, isPublicEmailDomain } from "@/lib/orgs";
+import { isDomainVerified } from "@/lib/verifications";
 import { getPublicClient } from "@/lib/ens/serverSigner";
 import { suggestNames } from "@/lib/ens/availability";
 
@@ -36,6 +37,11 @@ export async function GET(req: Request) {
         parent: pending.parent,
         readyAt: pending.readyAt,
       });
+    }
+
+    // Provisioning requires domain verification. Skip the on-chain availability lookups until then.
+    if (!(await isDomainVerified(member.domain))) {
+      return NextResponse.json({ ok: true, kind: "unverified", domain: member.domain });
     }
 
     const { base, options } = await suggestNames(getPublicClient(), member.domain);
