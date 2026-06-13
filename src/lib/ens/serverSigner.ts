@@ -21,3 +21,10 @@ export function getServerSigner() {
   const walletClient = createWalletClient({ account, chain: sepolia, transport: http(rpcUrl) });
   return { account, publicClient, walletClient };
 }
+
+/** Read-only public client (no signing key needed) for availability checks etc. */
+export function getPublicClient() {
+  const rpcUrl = process.env.NEXT_PUBLIC_ALCHEMY_RPC_URL;
+  if (!rpcUrl) throw new HttpError(500, "Server not configured: set NEXT_PUBLIC_ALCHEMY_RPC_URL.");
+  return createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
+}

@@ -19,9 +19,20 @@ create table if not exists public.orgs (
   parent_owner  text,                                     -- address that owns the parent
   status        text not null default 'active'
                   check (status in ('active', 'pending', 'taken')),
+  open_enrollment boolean not null default false,         -- true: anyone may claim under this parent
+  commit_secret text,                                     -- commit/reveal secret while pending
+  ready_at      timestamptz,                              -- when the commitment matures (pending)
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- 1a) Columns added after the initial table. Run these if your orgs table predates them:
+--       alter table public.orgs add column if not exists commit_secret text;
+--       alter table public.orgs add column if not exists ready_at timestamptz;
+--       alter table public.orgs add column if not exists open_enrollment boolean not null default false;
+--     (commit_secret holds the commit/reveal secret while status='pending'; open_enrollment lets
+--      anyone claim under the parent regardless of email domain.) To open the demo org:
+--       update public.orgs set open_enrollment = true where parent = 'democlub.eth';
 
 -- 2) Issued subnames: an index/cache of on-chain issuance (for UX + duplicate checks).
 create table if not exists public.subnames (

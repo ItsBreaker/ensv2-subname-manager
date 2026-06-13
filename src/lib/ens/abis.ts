@@ -72,6 +72,20 @@ export const ethRegistrarAbi = [
   },
 ] as const;
 
+/** The Sepolia test paymentToken has open minting — used to fund the platform key for registration. */
+export const mintableErc20Abi = [
+  {
+    name: "mint",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+] as const;
+
 /** VerifiableFactory used to deploy per-account permissioned resolvers (resolverFactory 0xd2A6…6198). */
 export const verifiableFactoryAbi = [
   {
