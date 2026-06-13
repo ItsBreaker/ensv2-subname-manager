@@ -1,0 +1,31 @@
+.row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button {
+  appearance: none;
+  border: 1px solid #2c3a5e;
+  background: #7c9eff;
+  color: #0f1117;
+  font: 600 15px/1 inherit;
+  padding: 12px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: filter 0.12s ease;
+}
+
+.button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.who {
+  color: #9aa3b5;
+  font-size: 14px;
+}

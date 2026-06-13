@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subname Manager — Architecture &amp; Build Plan</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#171a23; --panel2:#1e222e; --ink:#e8eaf0; --muted:#9aa3b5;
+    --line:#2a2f3d; --accent:#7c9eff; --accent2:#5be2c0; --warn:#ffb454; --danger:#ff7a7a;
+    --ens:#5298ff; --privy:#b692ff; --chain:#5be2c0; --ledger:#c7b8ff; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:48px 28px 120px;}
+  header.hero{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:8px;}
+  .kicker{font:600 12px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;}
+  h1{font-size:34px;line-height:1.15;margin:0 0 10px;font-weight:700;letter-spacing:-.01em;}
+  .sub{color:var(--muted);font-size:17px;max-width:70ch;}
+  .tracks{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;}
+  .pill{font:600 12px/1 var(--mono);padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);}
+  .pill.ens{color:var(--ens);border-color:#27406b}
+  .pill.privy{color:var(--privy);border-color:#3c2f63}
+  .pill.chain{color:var(--chain);border-color:#1f5249}
+  .pill.ledger{color:var(--ledger);border-color:#3a3550}
+  h2{font-size:23px;margin:54px 0 14px;padding-top:10px;font-weight:700;letter-spacing:-.01em;}
+  h2 .num{font:700 14px/1 var(--mono);color:var(--accent);margin-right:10px;vertical-align:2px;}
+  h3{font-size:17px;margin:26px 0 8px;font-weight:650;color:#fff;}
+  p{margin:10px 0;}
+  .muted{color:var(--muted);}
+  a{color:var(--accent);text-decoration:none;border-bottom:1px solid #2c3a5e;}
+  a:hover{border-bottom-color:var(--accent);}
+  code{font-family:var(--mono);font-size:.88em;background:#11141c;border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#cdd6f4;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:16px 0;}
+  .card.tight{padding:16px 18px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}.wrap{padding:32px 18px 100px}}
+  .label{font:600 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .callout{border-left:3px solid var(--accent);background:var(--panel2);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0;}
+  .callout.warn{border-color:var(--warn);}
+  .callout.danger{border-color:var(--danger);}
+  .callout.good{border-color:var(--accent2);}
+  .callout .tag{font:700 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:6px;}
+  .callout.warn .tag{color:var(--warn)} .callout.danger .tag{color:var(--danger)} .callout.good .tag{color:var(--accent2)} .callout .tag.def{color:var(--accent)}
+  ul{margin:10px 0;padding-left:22px;} li{margin:6px 0;}
+  /* diagram */
+  .flow{font-family:var(--mono);font-size:13px;}
+  .node{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;display:inline-block;margin:4px;}
+  .node.ens{border-color:#27406b}.node.privy{border-color:#3c2f63}.node.chain{border-color:#1f5249}.node.ledger{border-color:#3a3550}
+  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;margin:8px 0;}
+  .arrow{color:var(--muted);font-size:18px;}
+  .lane{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;border-top:1px solid var(--line);padding:14px 0;}
+  .lane:first-child{border-top:none;}
+  .lane .who{font:600 13px/1.3 var(--mono);color:var(--accent);}
+  /* table */
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top;}
+  th{font:600 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);}
+  td code{font-size:12px;}
+  .addr{font-family:var(--mono);font-size:12px;word-break:break-all;color:var(--accent2);}
+  /* phase timeline */
+  .phase{border:1px solid var(--line);border-radius:14px;margin:16px 0;overflow:hidden;}
+  .phase .head{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;background:var(--panel2);border-bottom:1px solid var(--line);}
+  .phase .head h3{margin:0;color:#fff;}
+  .phase .when{font:600 12px/1 var(--mono);color:var(--accent);}
+  .phase .body{padding:8px 20px 18px;}
+  .must{color:var(--accent2);font-weight:600;}
+  .check{list-style:none;padding-left:0;}
+  .check li{padding-left:26px;position:relative;}
+  .check li:before{content:"☐";position:absolute;left:0;color:var(--muted);font-family:var(--mono);}
+  .check li.win:before{content:"★";color:var(--warn);}
+  hr{border:none;border-top:1px solid var(--line);margin:40px 0;}
+  .toc{font-size:14px;columns:2;column-gap:30px;}
+  @media(max-width:600px){.toc{columns:1}}
+  .toc a{display:block;padding:3px 0;border:none;color:var(--muted);}
+  .toc a:hover{color:var(--accent);}
+  .foot{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">ETHGlobal New York 2026 · Architecture &amp; Build Plan</div>
+  <h1>Onboard-to-ENS Subname Manager</h1>
+  <p class="sub">A full platform where a web3-novice signs in with email, gets (or connects) an ENS name, and an organization can auto-issue member subnames — with multisig-protected parent control and verifiable, oracle-gated issuance.</p>
+  <div class="tracks">
+    <span class="pill ens">ENS · primary</span>
+    <span class="pill chain">Chainlink CRE · verifiable issuance gate</span>
+    <span class="pill ledger">Ledger · device-backed approval</span>
+    <span class="pill privy">Privy · wallet infra (no prize)</span>
+  </div>
+</header>
+
+<div class="card tight">
+  <div class="label">Contents</div>
+  <nav class="toc">
+    <a href="#thesis">1 · Thesis &amp; what's novel</a>
+    <a href="#users">2 · User types &amp; authority model</a>
+    <a href="#funnel">3 · The onboarding funnel</a>
+    <a href="#auth">4 · Auth-path decision tree</a>
+    <a href="#enroll">5 · Org enrollment &amp; delegation</a>
+    <a href="#issue">6 · Issuance: onchain / offchain toggle</a>
+    <a href="#cre">7 · Where Chainlink CRE sits</a>
+    <a href="#stack">8 · Component map &amp; contracts</a>
+    <a href="#plan">9 · Sequenced 48-hour plan</a>
+    <a href="#risks">10 · Risk register &amp; fallbacks</a>
+    <a href="#verify">11 · Verify-at-venue checklist</a>
+  </nav>
+</div>
+
+<!-- 1 -->
+<h2 id="thesis"><span class="num">01</span>Thesis &amp; what's novel</h2>
+<p>Existing subname tooling (Namespace, NameStone, ensub.org) all begin <em>after</em> the user already owns an ENS name and has a wallet. The novel surface is everything <strong>before</strong> that line, plus the org auto-issuance flow on top:</p>
+<div class="grid2">
+  <div class="card tight">
+    <div class="label" style="color:var(--accent2)">You build (nobody else does)</div>
+    <ul>
+      <li>Email → wallet → name onboarding for users with zero web3 knowledge</li>
+      <li>Three entry doors unified into one session model</li>
+      <li><strong>Org email auto-issuance:</strong> <code>alice@acme.com</code> → <code>alice.acme.eth</code> if the org is enrolled</li>
+      <li>Manager UI on top of ENSv2's per-name registries &amp; role model</li>
+    </ul>
+  </div>
+  <div class="card tight">
+    <div class="label">Already solved (you consume, don't rebuild)</div>
+    <ul>
+      <li>Offchain subname resolution → <strong>NameStone</strong> (CCIP-Read)</li>
+      <li>Onchain subname primitives → <strong>ENSv2 / NameWrapper</strong></li>
+      <li>Embedded wallets &amp; email auth → <strong>Privy</strong></li>
+      <li>SIWE message/verify → <strong>spruceid/siwe</strong> or an auth framework plugin</li>
+    </ul>
+  </div>
+</div>
+<div class="callout good">
+  <span class="tag">Prize logic</span>
+  ENS is the anchor (target <strong>Most Creative Use of ENS</strong> — subnames-as-org-identity is on their own example list — plus the <strong>$6k Integrate-ENS pool</strong>). <strong>Chainlink CRE</strong> adds a track via a real on-chain state change (issuance gated on a consensus-verified eligibility signal). <strong>Ledger</strong> adds a track as the device-backed approval layer for high-risk parent operations. Privy stays in as wallet-creation infrastructure only — we use it, but don't submit for its prize since we touch none of its new features (Earn / deposit addresses / Agent CLI). All three prize tracks reinforce the manager rather than pulling it off-thesis.
+</div>
+<div class="callout">
+  <span class="tag def">Build target &amp; production path</span>
+  Everything is built and demoed on <strong>Sepolia testnet</strong>, with the architecture deliberately portable to <strong>Ethereum mainnet</strong> later — same contracts, same flows, only addresses and gas economics change. Worth stating in the pitch: judges value a credible path to production, not just a testnet toy.
+</div>
+
+<!-- 2 -->
+<h2 id="users"><span class="num">02</span>User types &amp; the authority model</h2>
+<p>The single most important design decision. There are three distinct actors, and the trap is letting <em>email</em> grant <em>parent-name authority</em>. It must not.</p>
+
+<table>
+  <thead><tr><th>Actor</th><th>How they're authenticated</th><th>What they can do</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Org Admin</strong><br><span class="muted">controls the parent</span></td>
+      <td>Wallet control of the parent <code>.eth</code> name, proven via SIWE — <em>not</em> email. Control posture is the owner's choice: <strong>solo key</strong> (optionally Ledger-backed) or <strong>Safe multisig</strong>.</td>
+      <td>Enroll the org, set issuance policy (onchain/offchain), grant/revoke manager roles, transfer/revoke the parent, reassign subtrees.</td>
+    </tr>
+    <tr>
+      <td><strong>Manager</strong><br><span class="muted">delegated operator</span></td>
+      <td>Holds an <strong>ENSv2 role</strong> granted by an admin (a multisig action).</td>
+      <td>Issue / revoke member subnames, edit records. <em>Cannot</em> transfer the parent or remove other admins.</td>
+    </tr>
+    <tr>
+      <td><strong>Member</strong><br><span class="muted">subname holder</span></td>
+      <td>Verified email whose <strong>domain</strong> matches an enrolled org (Privy gives a verified email + domain on the session).</td>
+      <td>Receive &amp; control <code>them.org.eth</code>, edit their own profile, create their own sub-subnames.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout danger">
+  <span class="tag">Security hole to avoid</span>
+  "First person from an org to sign in becomes the parent owner" is unsafe: any current/compromised <code>@acme.com</code> address could seize the namespace, and shared/rotating club emails make it a race. <strong>First-sign-in is only a bootstrap trigger, never the authority.</strong> Authority over the parent always traces to <em>wallet control</em> of the <code>.eth</code> name (existing owner) or to <em>whoever completes registration</em> (new org), and that account should be a Safe.
+</div>
+
+<div class="callout">
+  <span class="tag def">The clean separation</span>
+  <strong>Email = eligibility</strong> ("you may receive <code>you.acme.eth</code>"). &nbsp;<strong>Wallet / multisig = administration</strong> ("you may govern <code>acme.eth</code>"). Keep these two powers in different boxes and the attack surface collapses.
+</div>
+
+<!-- 3 -->
+<h2 id="funnel"><span class="num">03</span>The onboarding funnel</h2>
+<p>One funnel, branching by door, converging on a session that always carries <code>{ address, ensName?, verifiedEmailDomain? }</code>.</p>
+
+<div class="card flow">
+  <div class="row">
+    <span class="node">Landing</span>
+    <span class="arrow">→</span>
+    <span class="node privy">Email login</span>
+    <span class="node">Connect wallet</span>
+    <span class="node ens">Type .eth name</span>
+  </div>
+  <div class="row"><span class="arrow">↓</span></div>
+  <div class="row">
+    <span class="node privy">Privy embedded wallet</span>
+    <span class="arrow">·</span>
+    <span class="node">wallet addr</span>
+    <span class="arrow">·</span>
+    <span class="node ens">resolve → SIWE prove</span>
+  </div>
+  <div class="row"><span class="arrow">↓ &nbsp; unified session: address (+ verified email domain?) &nbsp; ↓</span></div>
+  <div class="row">
+    <span class="node">Owns a name?</span>
+    <span class="arrow">— no →</span>
+    <span class="node ens">Register name <span class="muted">(or skip)</span></span>
+  </div>
+  <div class="row">
+    <span class="node">Email domain matches enrolled org?</span>
+    <span class="arrow">— yes →</span>
+    <span class="node chain">Auto-issue <code>you.org.eth</code></span>
+  </div>
+  <div class="row"><span class="arrow">↓</span></div>
+  <div class="row">
+    <span class="node" style="border-color:var(--accent)">MANAGER — edit records · build profile · issue/revoke subnames · toggle onchain/offchain</span>
+  </div>
+</div>
+
+<h3>Frontend UX requirement — info icon on every action</h3>
+<p>The product premise is <strong>web3 novices who don't know what any of this means</strong>. So contextual help isn't polish — it's core to the value proposition. Requirement: <strong>every button and function carries an info icon</strong> (ⓘ) with a tooltip/popover explaining what it does and when to click it, in plain language with zero jargon.</p>
+<div class="grid2">
+  <div class="card tight">
+    <div class="label">Pattern</div>
+    <p>A reusable <code>&lt;InfoTip&gt;</code> component next to every control: hover/tap reveals one or two sentences. Plain words ("This creates a free web address for a member" — not "mints an offchain CCIP-Read subname"). Optionally a "Learn more" link for the curious.</p>
+  </div>
+  <div class="card tight">
+    <div class="label">Examples</div>
+    <ul style="margin:4px 0">
+      <li><strong>Onchain/offchain toggle ⓘ</strong> — "Offchain = free &amp; instant. Onchain = costs a small fee but is permanent and fully owned by the member."</li>
+      <li><strong>Issue subname ⓘ</strong> — "Gives this person their own name under your organization, e.g. alice.yourorg.eth."</li>
+      <li><strong>Multisig toggle ⓘ</strong> — "Require more than one person to approve big changes. Safer for real orgs; skip it if you're solo."</li>
+    </ul>
+  </div>
+</div>
+<p class="muted">Call this out explicitly in the demo narration — "every control explains itself" is a concrete answer to "how is this usable by someone with no web3 knowledge," which is your core differentiator.</p>
+
+<!-- 4 -->
+<h2 id="auth"><span class="num">04</span>Auth-path decision tree</h2>
+<p>Two real mechanisms; the third door is a friendly front-end on the second.</p>
+<div class="card">
+  <div class="lane">
+    <div class="who">Email<br>(new user)</div>
+    <div>Privy issues a verified email + provisions an <strong>embedded wallet</strong> silently. Session = <code>{address, verifiedEmailDomain}</code>. This is your primary funnel and the whole reason the product is novel. → On success, check org-domain match.</div>
+  </div>
+  <div class="lane">
+    <div class="who">Connect<br>wallet</div>
+    <div>Standard connect (RainbowKit/ConnectKit). You have an <code>address</code> immediately, possibly already owning names. No email unless they add one. → Skip to "owns a name?".</div>
+  </div>
+  <div class="lane">
+    <div class="who">Type .eth<br>name</div>
+    <div>Typing a name <strong>does not authenticate</strong> — anyone can type <code>vitalik.eth</code>. Flow: resolve name → address, then run <strong>SIWE (EIP-4361)</strong> so they sign a nonce'd message proving control of that address. Verify signature ⇒ mint a normal session cookie/JWT. The name is just a friendlier lookup over SIWE.</div>
+  </div>
+</div>
+<div class="callout warn">
+  <span class="tag">Don't hand-roll SIWE</span>
+  Use <code>spruceid/siwe</code> or an auth-framework SIWE plugin. The library enforces nonce + domain + chain-ID binding and expiry; rolling your own signature recovery without that binding is a replay foot-gun.
+</div>
+
+<!-- 5 -->
+<h2 id="enroll"><span class="num">05</span>Org enrollment &amp; delegation mechanics</h2>
+<p>Enrollment is the act that grants <em>your platform</em> permission to issue under a parent name. It also fixes the issuance policy and the control posture (§2). Three cases at registration time:</p>
+
+<div class="grid2">
+  <div class="card tight">
+    <div class="label" style="color:var(--privy)">A · Org already owns acme.eth</div>
+    <p>Admin connects the controlling wallet, signs SIWE to prove control, sets the control posture (solo or Safe) + initial managers. Control of the name <em>is</em> the proof. Email never touches authority here.</p>
+  </div>
+  <div class="card tight">
+    <div class="label" style="color:var(--ens)">B · Org has no name yet (your novel case)</div>
+    <p>Platform walks them through registering <code>acme.eth</code> on the v2 <strong>ETHRegistrar</strong> (<code>0x8c2E…fFcA</code>). The <strong>registering wallet</strong> becomes root authority; they then choose solo-key or Safe. See the registration-flow note below — it's a commit/reveal with an ERC-20 payment, not a one-shot ETH tx.</p>
+  </div>
+</div>
+<div class="card tight">
+  <div class="label" style="color:var(--warn)">C · acme.eth is already owned by an unrelated external party</div>
+  <p>Don't dead-end. During registration, check label availability and <strong>present a few free alternatives</strong> — <code>acmehq.eth</code>, <code>acme-dao.eth</code>, <code>acmeclub.eth</code>, <code>getacme.eth</code> — and let them pick one to register as the parent. The org proceeds under the alternative name; nothing about the model changes. <span class="muted">(Booth question 5: is there a names-suggestion/availability endpoint, or do you run per-label availability checks yourself?)</span></p>
+</div>
+
+<h3>v2 registration flow — the concrete steps (from gskril/ens-cli)</h3>
+<p>Registering on the v2 ETHRegistrar is a <strong>commit/reveal with ERC-20 payment</strong>, not a single ETH transaction. The reference implementation in <a href="https://github.com/gskril/ens-cli">ens-cli</a> gives the exact calls:</p>
+<div class="card">
+<pre style="margin:0;font-family:var(--mono);font-size:12.5px;color:#cdd6f4;overflow-x:auto;"><span style="color:#9aa3b5">// 1. (optional, recommended) deploy a per-account resolver via the</span>
+<span style="color:#9aa3b5">//    resolverFactory (0xd2A6…6198); pass its address below. Default = zeroAddress.</span>
+<span style="color:#9aa3b5">// 2. COMMIT</span>
+registrar.makeCommitment(label, owner, secret, subregistry, resolver, duration, referrer)
+registrar.commit(commitment)              <span style="color:#9aa3b5">// value: 0</span>
+<span style="color:#9aa3b5">// 3. WAIT ≥ 60 seconds after commit is mined</span>
+<span style="color:#9aa3b5">// 4. APPROVE the registrar to spend the ERC-20 total (paymentToken 0x3DfC…38D9)</span>
+<span style="color:#9aa3b5">// 5. REVEAL / register</span>
+registrar.register(label, owner, secret, subregistry, resolver, duration, paymentToken, referrer)  <span style="color:#9aa3b5">// value: 0</span></pre>
+</div>
+<ul>
+  <li><strong>Payment is an ERC-20</strong> (<code>paymentToken</code>), not ETH — you must <code>approve()</code> before reveal. This is different from v1 (which sends ETH value). Budget UI for the approval step.</li>
+  <li><strong><code>subregistry</code></strong> defaults to zero; set it only if the name will itself issue subnames (which yours will → may need a subregistry deployed for the parent).</li>
+  <li><strong><code>resolver</code></strong> defaults to zero on v2; deploy a per-account resolver first (resolverFactory) so the name can hold profile records.</li>
+  <li>The 60-second commit/reveal wait is real — sequence your demo so you're not staring at a spinner on stage.</li>
+</ul>
+
+<h3>Delegation — the two issuance modes</h3>
+<table>
+  <thead><tr><th>Mode</th><th>One-time setup the admin does</th><th>Per-member cost</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Offchain</strong><br><span class="muted">NameStone / CCIP-Read</span></td>
+      <td>Point the parent's resolver at the CCIP-Read gateway (one onchain tx).</td>
+      <td>Free, instant</td>
+      <td>Backend writes <code>alice.acme.eth</code> to DB; resolves via CCIP-Read. Best for "onboard 500 students."</td>
+    </tr>
+    <tr>
+      <td><strong>Onchain</strong><br><span class="muted">ENSv2 role / NameWrapper</span></td>
+      <td>Grant the platform registrar contract the <em>create-subname</em> role (ENSv2) or <code>setSubnodeRecord</code> rights on the wrapped parent.</td>
+      <td>Gas per issue</td>
+      <td>Real subname NFT, trustless, holder-owned. Best when the subname must be a durable on-chain asset.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Parent control: solo or multisig (owner's choice) + optional Ledger</h3>
+<p>The registering owner picks the control posture at setup — a forced 2-of-3 would be wrong for a solo club organizer. The authority <em>model</em> is unchanged either way: authority always traces to wallet control of the parent. The "wallet" is just one key or a Safe.</p>
+<table>
+  <thead><tr><th>Posture</th><th>Who controls the parent</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Solo</strong></td><td>A single key (ideally a <strong>Ledger-backed EOA</strong>).</td><td>One organizer, small club, fast setup.</td></tr>
+    <tr><td><strong>Multisig</strong></td><td>A <strong>Safe</strong>, M-of-N admins (e.g. 2-of-3).</td><td>Real org, rotating officers, no single point of control.</td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <span class="tag def">Where Ledger fits (3rd prize track)</span>
+  Ledger is the <strong>device-backed approval layer for high-risk parent operations</strong> — transferring the parent, reassigning a subtree (an ENSv2 single-op that wipes a whole branch), or bulk issuance/revocation. It composes either way: a signer on the Safe, or the approval device for a solo owner. This is squarely Ledger's "human-in-the-loop for sensitive actions" example. Note the <strong>solo + Ledger</strong> case is the <em>strongest</em> security story: with no multisig quorum protecting you, device confirmation is the only thing between a compromised session and a namespace takeover.
+</div>
+
+<h3>Admin onboarding via ENSv2 roles — why ENSv2 earns its place</h3>
+<p>ENSv2 replaces NameWrapper fuses with a real role-based subsystem called <strong>Enhanced Access Control (EAC)</strong>, built into the <strong>Permissioned Registry</strong>. Each name has roles (set-resolver, set-subregistry, create-subname…), each role has an admin role that grants/revokes it, roles can be held per-name or contract-wide, and on transfer the roles follow the new owner. That makes your requirements <em>native protocol operations</em>, not database bolt-ons:</p>
+<ul>
+  <li><strong>Onboard a new manager</strong> = an existing admin grants the create-subname role on the Permissioned Registry (a solo-key or multisig action depending on posture).</li>
+  <li><strong>"Can issue but can't transfer the parent"</strong> = expressible directly in the EAC role grant.</li>
+  <li><strong>No single point of control</strong> (multisig posture) = high-risk ops require M-of-N signatures; (solo posture) = high-risk ops require a Ledger device tap.</li>
+</ul>
+<div class="callout good">
+  <span class="tag">Confirmed live on Sepolia</span>
+  Contracts are deployed (addresses in §8). EAC is part of the Permissioned Registry at <code>0xDEDB…B67</code>. Reference build: gskril's <a href="https://github.com/gskril/ens-cli">ens-cli</a> implements v2 registration against these exact patterns, and the ENSv2 docs ship a "For Contract Developers: build a subname registrar on the Permissioned Registry" tutorial — your two primary references for the onchain branch.
+</div>
+<div class="callout warn">
+  <span class="tag">Scope honesty</span>
+  Full role wiring + Safe + a complete permissions console is a lot for a weekend. Build the <em>model</em> correctly but demo at sensible depth: a real 2-of-3 Safe controlling the parent and <em>one</em> role-grant manager-onboarding flow working end-to-end beats a half-working permissions dashboard.
+</div>
+
+<!-- 6 -->
+<h2 id="issue"><span class="num">06</span>Issuance: the onchain / offchain toggle</h2>
+<p>Implement one internal interface with two backends; the manager picks per-org at enrollment. The toggle is not a gimmick — it's the real policy decision from §5, and the abstraction itself reads as "ENS done thoughtfully."</p>
+<div class="card">
+<pre style="margin:0;font-family:var(--mono);font-size:13px;color:#cdd6f4;overflow-x:auto;"><span style="color:#7c9eff">interface</span> SubnameIssuer {
+  issue(label, ownerAddress, records, policy): Promise&lt;Subname&gt;
+  revoke(fqdn): Promise&lt;void&gt;
+}
+<span style="color:#5be2c0">// OffchainIssuer</span>  → NameStone REST write, CCIP-Read resolution, gasless
+                  → works on a v1 OR v2 parent (resolver-layer, see interop note)
+<span style="color:#5be2c0">// OnchainIssuer</span>   → v2 PermissionedRegistry (0xDEDB…B67) create-subname via EAC role
+                  → v1 fallback: NameWrapper.setSubnodeRecord (0x0635…fCE8)
+                  ↑ optionally gated by the CRE workflow (see §7)</pre>
+</div>
+<div class="callout good">
+  <span class="tag">v1 / v2 interop — NameStone &amp; Durin are safe on a v2 parent</span>
+  The <strong>resolver interface did not change</strong> between v1 and v2; ENS designed v2 so existing v1 resolvers keep working, with resolution flowing through the <strong>Universal Resolver</strong> (canonical entry point, upgraded behind the scenes). NameStone and Durin both operate at the <strong>resolver layer</strong> via CCIP-Read (ERC-3668) — which both versions support — so they're orthogonal to the v1→v2 <em>registry</em> change. Your offchain branch works regardless of whether the parent is v1 or v2: you point the parent's resolver at the gateway, you're not touching the registry. <span class="muted">Caveat: resolve through the Universal Resolver and confirm your client library (viem/wagmi/ethers) has current v2 support — library coverage was still catching up in early 2026.</span>
+</div>
+<p class="muted">Build order: get the <strong>offchain</strong> branch fully working end-to-end (login → issue → edit profile) first because it's fastest and gasless, then add the onchain branch as the second implementation behind the same interface. Don't build both half-way in parallel.</p>
+
+<!-- 7 -->
+<h2 id="cre"><span class="num">07</span>Where Chainlink CRE sits</h2>
+<p>CRE is the <strong>verifiable gate between "email says you're eligible" and "a subname is minted on-chain."</strong> It's a trigger → callback → on-chain-write workflow where every step is run across a decentralized oracle network and merged by BFT consensus.</p>
+<div class="card flow">
+  <div class="row">
+    <span class="node">HTTP trigger:<br>onchain issue requested</span>
+    <span class="arrow">→</span>
+    <span class="node chain">CRE callback:<br>verify eligibility signal<br><span class="muted">(verified-email attestation / org allowlist / SSO API)</span></span>
+    <span class="arrow">→</span>
+    <span class="node chain">BFT consensus<br>across DON nodes</span>
+    <span class="arrow">→</span>
+    <span class="node ens">EVM write:<br>authorize issuance<br>on registrar contract</span>
+  </div>
+</div>
+<p>This satisfies the bounty's hard requirement (<strong>Chainlink must cause an on-chain state change</strong> — here, the subname issuance), makes the security story <em>real</em> (no single backend or API can forge eligibility — you remove yourself as a trusted party), and stays exactly on-thesis (it's the verification layer for issuance, not a side feature). It also revives your original email-verification idea in its strongest form.</p>
+<div class="callout good">
+  <span class="tag">De-risk</span>
+  The bounty states: show a successful <strong>simulation</strong> via the CRE CLI and their team deploys it to the live network <em>for you</em> during the event. So your qualifying target is a <em>simulating</em> workflow — deployment is Early-Access-gated and you don't need to clear it yourself.
+</div>
+<div class="callout warn">
+  <span class="tag">Keep a fallback path</span>
+  CRE has a real learning curve (Go/TS workflows, CLI, trigger/callback model). Keep a plain backend-signed issuance path so your <em>core</em> demo never blocks on CRE being finished. CRE is the prize-qualifying enhancement layered on top, not a dependency of the main thread.
+</div>
+
+<!-- 8 -->
+<h2 id="stack"><span class="num">08</span>Component map &amp; contract references</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Tool</th><th>Role in this project</th></tr></thead>
+  <tbody>
+    <tr><td>Onboarding / wallets</td><td class="privy">Privy</td><td>Email login + embedded wallets; verified email domain on session. <strong>Infrastructure only — not a prize submission.</strong></td></tr>
+    <tr><td>Existing-wallet auth</td><td>SIWE (spruceid)</td><td>Prove control of a typed/connected address; basis of the "type your .eth name" door.</td></tr>
+    <tr><td>Naming — offchain</td><td>NameStone</td><td>Gasless subname issuance + CCIP-Read resolution.</td></tr>
+    <tr><td>Naming — onchain</td><td class="ens">ENSv2 / NameWrapper</td><td>Per-name registries, role model, real subname NFTs. Fallback: <code>setSubnodeRecord</code>.</td></tr>
+    <tr><td>Parent governance</td><td>Safe <span class="muted">(optional)</span></td><td>M-of-N multisig owning a parent name — only when the owner chooses the multisig posture. Solo owners skip it.</td></tr>
+    <tr><td>Device approval</td><td class="ledger">Ledger</td><td><strong>Prize track.</strong> Device-backed confirmation of high-risk parent ops (transfer, subtree reassignment, bulk issuance). Safe signer or solo-owner approval device.</td></tr>
+    <tr><td>Verifiable gate</td><td class="chain">Chainlink CRE</td><td><strong>Prize track.</strong> Consensus-verified eligibility → on-chain issuance authorization.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout good">
+  <span class="tag">ENSv2 Sepolia addresses — confirmed</span>
+  These are the live v2 deployment addresses to build against. ABIs come from the ENSv2 contracts repo / the <a href="https://github.com/gskril/ens-cli">ens-cli</a> <code>lib/contracts.ts</code>. Interfaces are still labelled non-final upstream, so pin these and re-check if anything reverts unexpectedly.
+</div>
+<table>
+  <thead><tr><th>Contract</th><th>Sepolia address</th><th>Used for</th></tr></thead>
+  <tbody>
+    <tr><td>PermissionedRegistry (registry)</td><td class="addr">0xDEDB92913A25abE1f7BCDD85D8A344a43B398B67</td><td>Onchain subname issuance + EAC roles</td></tr>
+    <tr><td>ETHRegistrar (registrar)</td><td class="addr">0x8c2E866B439358c41AE05De9cbE8A00BFEFafFcA</td><td>Parent-name registration (commit/reveal)</td></tr>
+    <tr><td>paymentToken (ERC-20)</td><td class="addr">0x3DfC8b53dAFa5eBbb071a8B97678Ab534Ed838D9</td><td>Registration payment — approve before reveal</td></tr>
+    <tr><td>resolverFactory</td><td class="addr">0xd2A632D8A8b67C2c4398c255CBd7Af8Dd7236198</td><td>Deploy per-account resolvers</td></tr>
+    <tr><td>resolverImplementation</td><td class="addr">0xdcE5205A553573FFd47629327DDdf36186022FfA</td><td>Resolver logic impl</td></tr>
+    <tr><td>resolverProxyLogic</td><td class="addr">0x917C561a74Df398646e06f3FFAA51DB8e8330C5A</td><td>Resolver proxy logic</td></tr>
+    <tr><td>NameWrapper <span class="muted">(v1 fallback)</span></td><td class="addr">0x0635513f179D50A207757E05759CbD106d7dFcE8</td><td>Guaranteed onchain issuance fallback (<code>setSubnodeRecord</code>)</td></tr>
+    <tr><td>UniversalResolver</td><td class="addr">0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe</td><td>Canonical resolution entry point (v1+v2)</td></tr>
+  </tbody>
+</table>
+
+<!-- 9 -->
+<h2 id="plan"><span class="num">09</span>Sequenced 48-hour build plan</h2>
+<p>Front-load the one thread that must work flawlessly. A judge needs to see <em>one</em> path end-to-end far more than three paths half-built. Each phase ends in something demoable.</p>
+
+<div class="phase">
+  <div class="head"><h3>Phase 0 — Foundation</h3><span class="when">Hrs 0–4</span></div>
+  <div class="body">
+    <ul class="check">
+      <li>Next.js app, wallet/Privy SDK wired, Sepolia RPC + test ETH + paymentToken balance</li>
+      <li>Wire the v2 addresses (§8) + ABIs from ens-cli <code>lib/contracts.ts</code>; resolve via Universal Resolver</li>
+      <li>Register <strong>one demo org parent</strong> (<code>democlub.eth</code>) on the v2 ETHRegistrar — exercises commit/reveal + ERC-20 approval once, up front</li>
+      <li>Define the <code>SubnameIssuer</code> interface (both backends stubbed)</li>
+      <li>Build the reusable <code>&lt;InfoTip&gt;</code> component early — every control gets one from the start, not retrofitted</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="head"><h3>Phase 1 — The must-have thread <span class="must">(golden path)</span></h3><span class="when">Hrs 4–16</span></div>
+  <div class="body">
+    <p class="muted">If only this works, you still have a winning ENS demo.</p>
+    <ul class="check">
+      <li class="win">Email login via Privy → embedded wallet provisioned</li>
+      <li class="win">Verified email domain → matches pre-enrolled <code>democlub.eth</code></li>
+      <li class="win">Auto-issue <code>you.democlub.eth</code> via <strong>offchain</strong> NameStone branch</li>
+      <li class="win">Land in manager → edit text records → build a full ENSv2 profile</li>
+      <li>Resolution works: look up <code>you.democlub.eth</code> and see records</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="head"><h3>Phase 2 — Breadth: doors + onchain toggle</h3><span class="when">Hrs 16–28</span></div>
+  <div class="body">
+    <ul class="check">
+      <li>"Connect wallet" + "type .eth name → SIWE" doors into the same session</li>
+      <li>Self-service org enrollment: existing-owner path (connect + prove control of a parent)</li>
+      <li>Onchain issuance branch behind the toggle (ENSv2 role grant; NameWrapper fallback)</li>
+      <li>Register-a-new-name flow for orgs/users without one</li>
+      <li><strong>Name-taken handling:</strong> if the desired parent is owned externally, show 3–4 available alternatives to register instead</li>
+      <li><strong>Control-posture toggle</strong> at registration: solo key vs Safe multisig</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="head"><h3>Phase 3 — Prize-qualifying layers</h3><span class="when">Hrs 28–40</span></div>
+  <div class="body">
+    <ul class="check">
+      <li class="win"><strong>Chainlink CRE:</strong> workflow that verifies eligibility → writes issuance authorization; get it <em>simulating</em> via CLI (qualifies the prize)</li>
+      <li class="win"><strong>Ledger:</strong> device-backed approval gate on a high-risk parent op (transfer / subtree reassign / bulk issue) — works for both solo-owner and Safe-signer postures</li>
+      <li><strong>Safe multisig</strong> path on <code>democlub.eth</code> + one role-grant manager-onboarding flow (multisig posture demo)</li>
+    </ul>
+  </div>
+</div>
+
+<div class="phase">
+  <div class="head"><h3>Phase 4 — Polish, demo &amp; submission</h3><span class="when">Hrs 40–48</span></div>
+  <div class="body">
+    <ul class="check">
+      <li>Record the &le;3-min demo video around the <strong>golden path</strong>, then show breadth</li>
+      <li>Architecture diagram in README (Arc/CRE bounties explicitly require a diagram)</li>
+      <li>Open-source repo + clear README per ENS qualification rules; no hard-coded values</li>
+      <li>Prep the ENS-booth in-person presentation (Sunday morning)</li>
+      <li>Submit to each track with a one-paragraph "how X is used" note</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="tag def">Cut-line discipline</span>
+  If you fall behind, the priority order is: <strong>Phase 1 golden path</strong> &gt; CRE simulation &gt; onchain toggle &gt; Ledger approval &gt; Safe/roles &gt; extra doors. Never sacrifice a flawless golden-path demo to add a second half-working integration.
+</div>
+
+<!-- 10 -->
+<h2 id="risks"><span class="num">10</span>Risk register &amp; fallbacks</h2>
+<table>
+  <thead><tr><th>Risk</th><th>Likelihood</th><th>Fallback</th></tr></thead>
+  <tbody>
+    <tr><td>ENSv2 interfaces non-final / a v2 call reverts unexpectedly</td><td>Low–Med</td><td>Addresses are confirmed live, but upstream marks interfaces non-final. Pin the ens-cli ABIs; if onchain v2 issuance breaks mid-event, fall back to <code>NameWrapper.setSubnodeRecord</code> (v1). Offchain golden path is unaffected either way.</td></tr>
+    <tr><td>v2 registration friction (commit/reveal 60s wait + ERC-20 approve)</td><td>Medium</td><td>Register the demo parent <em>once</em> in Phase 0, not live on stage. Pre-fund the paymentToken. Demo issuance under an already-registered parent.</td></tr>
+    <tr><td>CRE learning curve eats the clock</td><td>Medium</td><td>Backend-signed issuance is the default; CRE is layered on. Target <em>simulation</em>, not deploy.</td></tr>
+    <tr><td>Ledger hardware not on hand / SDK integration slow</td><td>Medium</td><td>The Ledger prize needs device-backed signing on a real op — borrow a device at the venue or use Ledger's emulator/dev tooling. If it won't land, the Safe multisig still carries the "no single point of control" security story; Ledger is the bonus track, not core.</td></tr>
+    <tr><td>Offchain vs onchain confusion in demo</td><td>Low</td><td>Demo offchain first (gasless, instant); introduce onchain as the "trustless, durable" upgrade with the explicit tradeoff stated.</td></tr>
+    <tr><td>"Type .eth name" mistaken for auth</td><td>Low</td><td>Always pair name entry with a SIWE signature; never authorize on resolution alone.</td></tr>
+  </tbody>
+</table>
+
+<!-- 11 -->
+<h2 id="verify"><span class="num">11</span>Verify-at-venue checklist</h2>
+<p>Most contract unknowns are now resolved (addresses in §8). Remaining things to confirm or grab on site:</p>
+<ul class="check">
+  <li>Get the <strong>paymentToken on Sepolia</strong> (faucet/mint) so you can register the demo parent — registration is ERC-20-paid, not ETH</li>
+  <li>Confirm your client library (viem/wagmi/ethers) resolves v2 correctly via the Universal Resolver; apply the ENS patch if on an older ethers</li>
+  <li>NameStone API key + current offchain-issuance endpoints; confirm it points at a Sepolia parent cleanly</li>
+  <li>Names availability/suggestion endpoint — does one exist, or do you run per-label availability checks yourself?</li>
+  <li>Whether the <strong>EAC create-subname role grant</strong> on the PermissionedRegistry behaves as expected on Sepolia (test it Phase 0/2, don't discover live)</li>
+  <li>Ledger: device availability at venue (or emulator/dev tooling) + which SDK/flow to use for signing a contract call</li>
+  <li>CRE CLI install + an account; run their Custom Data Feed demo once to learn the trigger/callback loop before writing your own</li>
+  <li>Re-read each target track's qualification bullets (ENS / Chainlink / Ledger) and the in-person presentation requirement (ENS booth, Sunday AM)</li>
+</ul>
+
+<div class="foot">
+  Built as a working reference for the hackathon. Treat every address and contract claim as "verify at venue" — protocol deployments move faster than any doc. Priorities, not promises: ship the golden path first.
+</div>
+
+</div>
+</body>
+</html>
