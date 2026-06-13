@@ -158,6 +158,30 @@ export async function getMembers(parent: string): Promise<Member[]> {
   }));
 }
 
+/** Look up an active org by parent name (any enrollment policy) — used by the reservation path. */
+export async function getActiveOrgByParent(parent: string): Promise<EnrolledOrg | null> {
+  const p = parent.trim().toLowerCase();
+  const { data, error } = await getSupabase()
+    .from("orgs")
+    .select("domain, parent, subregistry, issuance, owner_model, parent_owner, status")
+    .eq("parent", p)
+    .eq("status", "active")
+    .limit(1);
+
+  if (error) throw new Error(`org lookup failed: ${error.message}`);
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    domain: row.domain,
+    parent: row.parent,
+    subregistry: row.subregistry,
+    issuance: row.issuance,
+    ownerModel: row.owner_model,
+    parentOwner: row.parent_owner,
+    status: row.status,
+  };
+}
+
 export interface ProvisioningRow {
   domain: string;
   parent: string;

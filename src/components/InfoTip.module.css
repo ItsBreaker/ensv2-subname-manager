@@ -16,19 +16,19 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: #9aa3b5;
+  color: var(--muted, #6b7280);
   cursor: pointer;
   transition: color 0.12s ease;
 }
 
 .trigger:hover,
 .trigger:focus-visible {
-  color: #7c9eff;
+  color: var(--accent, #3889ff);
   outline: none;
 }
 
 .trigger:focus-visible {
-  box-shadow: 0 0 0 2px rgba(124, 158, 255, 0.5);
+  box-shadow: 0 0 0 2px rgba(56, 137, 255, 0.4);
 }
 
 .bubble {
@@ -41,14 +41,14 @@
   max-width: 260px;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid #2a2f3d;
-  background: #1e222e;
-  color: #e8eaf0;
+  border: 1px solid var(--line, #e6e8eb);
+  background: #ffffff;
+  color: var(--ink, #1e2122);
   font-size: 13px;
   line-height: 1.45;
   text-align: left;
   font-weight: 400;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
 }
 
 .bubble::after {
@@ -58,10 +58,10 @@
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: #1e222e;
+  border-top-color: #ffffff;
 }
 
 .learnMore {
-  color: #7c9eff;
+  color: var(--accent, #3889ff);
   white-space: nowrap;
 }

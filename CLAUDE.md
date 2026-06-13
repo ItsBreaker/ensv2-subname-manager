@@ -84,7 +84,11 @@ set-up (provisioning) or the members list (`GET /api/admin/org`) with removal
 (`POST /api/admin/remove` — **revokes on-chain** via `unregister` then de-lists; the platform holds
 `ROLE_UNREGISTER` on the subregistry root, which the EAC ORs onto every token, so subnames are
 revocable by the org). Open enrollment: `orgs.open_enrollment` lets public-email users claim
-under a typed org name. Next: CSV bulk import, then DNS/CRE admin proof, then subgroups (EAC).
+under a typed org name. **CSV bulk import:** admins upload emails/labels (`POST /api/admin/import`) →
+rows are stored in `reservations` (a `(parent,email)` table); a member with a reservation may claim
+it on sign-in (a third eligibility path in `/api/issue`, after domain match + open org). The UI is a
+light/ENS theme (white bg, blue accent) driven by CSS variables in `globals.css`. Next: DNS/CRE admin
+proof, then subgroups (EAC).
 
 ## Build priority order
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { toErrorResponse, verifyMember } from "@/lib/auth";
 import { getAdminOrg, getMembers } from "@/lib/orgs";
+import { getReservations } from "@/lib/reservations";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,16 @@ export async function GET(req: Request) {
   try {
     const member = await verifyMember(req);
     const org = await getAdminOrg(member.email);
-    if (!org) return NextResponse.json({ ok: true, org: null, members: [] });
-    const members = await getMembers(org.parent);
+    if (!org) return NextResponse.json({ ok: true, org: null, members: [], invites: [] });
+    const [members, invites] = await Promise.all([
+      getMembers(org.parent),
+      getReservations(org.parent),
+    ]);
     return NextResponse.json({
       ok: true,
       org: { parent: org.parent, subregistry: org.subregistry },
       members,
+      invites: invites.filter((i) => !i.claimed).map((i) => ({ email: i.email, label: i.label })),
     });
   } catch (e) {
     return toErrorResponse(e);

@@ -80,9 +80,9 @@
 .inputGroup {
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--line, #2a2f3d);
+  border: 1px solid var(--line, #e6e8eb);
   border-radius: 10px;
-  background: #11141c;
+  background: #ffffff;
   overflow: hidden;
 }
 
@@ -106,9 +106,9 @@
 
 .primaryButton {
   appearance: none;
-  border: 1px solid #2c3a5e;
-  background: var(--accent, #7c9eff);
-  color: #0f1117;
+  border: 1px solid var(--accent, #3889ff);
+  background: var(--accent, #3889ff);
+  color: #ffffff;
   font: 600 14px/1 inherit;
   padding: 12px 18px;
   border-radius: 10px;
@@ -137,8 +137,8 @@
 }
 
 .ghostButton:hover {
-  color: var(--ink, #e8eaf0);
-  border-color: #3a4258;
+  color: var(--ink, #1e2122);
+  border-color: #cdd3da;
 }
 
 .success {
@@ -151,9 +151,9 @@
   margin: 14px 0 0;
   padding: 12px 14px;
   border-radius: 10px;
-  border: 1px solid var(--line, #2a2f3d);
-  background: #1e222e;
-  color: var(--muted, #9aa3b5);
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
   font-size: 13px;
   line-height: 1.5;
 }

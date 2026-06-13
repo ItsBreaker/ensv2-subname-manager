@@ -20,9 +20,16 @@ function shortAddress(address: string): string {
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
 
+type Reservation = { parent: string; label: string };
 type OrgState =
   | { loading: true }
-  | { loading: false; org: { parent: string } | null; isPublicDomain: boolean; subname: string | null };
+  | {
+      loading: false;
+      org: { parent: string } | null;
+      isPublicDomain: boolean;
+      subname: string | null;
+      reservation: Reservation | null;
+    };
 
 const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
   { key: "name", label: "Display name", placeholder: "Jayden" },
@@ -75,6 +82,7 @@ export function Manager({
         org?: { parent: string } | null;
         isPublicDomain?: boolean;
         subname?: string | null;
+        reservation?: Reservation | null;
       };
       if (res.ok && data.ok) {
         setOrgState({
@@ -82,12 +90,13 @@ export function Manager({
           org: data.org ?? null,
           isPublicDomain: !!data.isPublicDomain,
           subname: data.subname ?? null,
+          reservation: data.reservation ?? null,
         });
       } else {
-        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null });
       }
     } catch {
-      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null });
     }
   }, [getAccessToken]);
 
@@ -96,6 +105,7 @@ export function Manager({
   }, [loadOrg]);
 
   const org = orgState.loading ? null : orgState.org;
+  const reservation = orgState.loading ? null : orgState.reservation;
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
 
   const handleIssue = useCallback(
@@ -182,7 +192,7 @@ export function Manager({
                     font: "600 12px/1 inherit",
                     padding: "7px 12px",
                     background: mode === m ? "var(--accent)" : "transparent",
-                    color: mode === m ? "#0f1117" : "var(--muted, #9aa3b5)",
+                    color: mode === m ? "#fff" : "var(--muted, #9aa3b5)",
                   }}
                 >
                   {m === "member" ? "Member" : "Admin"}
@@ -328,6 +338,32 @@ export function Manager({
               )}
             </div>
           )}
+        </section>
+      ) : reservation ? (
+        <section className={styles.card}>
+          <div className={styles.cardLabel} style={{ color: "var(--accent2, #16a34a)" }}>
+            Invitation
+          </div>
+          <p className={styles.cardText}>
+            You&apos;ve been invited to claim{" "}
+            <strong>
+              {reservation.label}.{reservation.parent}
+            </strong>
+            . It&apos;ll be set up to resolve to your wallet.
+          </p>
+          <div className={styles.issueRow}>
+            <button
+              className={styles.primaryButton}
+              onClick={() => handleIssue(reservation.parent)}
+              disabled={status === "issuing"}
+            >
+              {status === "issuing" ? "Claiming…" : "Claim my name"}
+            </button>
+            <InfoTip>
+              Your organization reserved this name for you. Claiming makes it yours on the blockchain.
+            </InfoTip>
+          </div>
+          {issueError}
         </section>
       ) : org ? (
         <section className={styles.card}>

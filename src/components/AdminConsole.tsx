@@ -6,11 +6,12 @@ import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
 
 type Member = { fqdn: string; label: string; owner: string; createdAt: string };
+type Invite = { email: string; label: string };
 type NameOption = { label: string; fqdn: string; available: boolean };
 
 type AdminState =
   | { phase: "loading" }
-  | { phase: "managed"; parent: string; members: Member[] }
+  | { phase: "managed"; parent: string; members: Member[]; invites: Invite[] }
   | { phase: "setup" };
 
 type ProvPhase =
@@ -34,6 +35,8 @@ export function AdminConsole() {
 
   const [admin, setAdmin] = useState<AdminState>({ phase: "loading" });
   const [removing, setRemoving] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const [prov, setProv] = useState<ProvPhase>({ phase: "loading" });
   const [now, setNow] = useState<number>(() => Date.now());
@@ -47,9 +50,15 @@ export function AdminConsole() {
         ok?: boolean;
         org?: { parent: string } | null;
         members?: Member[];
+        invites?: Invite[];
       };
       if (res.ok && data.ok && data.org) {
-        setAdmin({ phase: "managed", parent: data.org.parent, members: data.members ?? [] });
+        setAdmin({
+          phase: "managed",
+          parent: data.org.parent,
+          members: data.members ?? [],
+          invites: data.invites ?? [],
+        });
       } else {
         setAdmin({ phase: "setup" });
       }
@@ -162,6 +171,45 @@ export function AdminConsole() {
     [getAccessToken],
   );
 
+  const handleImport = useCallback(
+    async (file: File) => {
+      setImportMsg(null);
+      setImporting(true);
+      try {
+        const text = await file.text();
+        const rows: { email: string; label?: string }[] = [];
+        for (const line of text.split(/\r?\n/)) {
+          const cells = line.split(",").map((c) => c.trim());
+          const email = cells[0] ?? "";
+          if (!email.includes("@")) continue; // skip header rows / blanks
+          rows.push({ email, label: cells[1] || undefined });
+        }
+        if (rows.length === 0) {
+          setImportMsg("No emails found in that file.");
+          return;
+        }
+        const token = await getAccessToken();
+        const res = await fetch("/api/admin/import", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ rows }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string; count?: number };
+        if (res.ok && data.ok) {
+          setImportMsg(`Imported ${data.count} invite(s).`);
+          await loadAdmin();
+        } else {
+          setImportMsg(data.error ?? "Import failed.");
+        }
+      } catch (e) {
+        setImportMsg(e instanceof Error ? e.message : "Import failed.");
+      } finally {
+        setImporting(false);
+      }
+    },
+    [getAccessToken, loadAdmin],
+  );
+
   const handleRemove = useCallback(
     async (fqdn: string) => {
       setRemoving(fqdn);
@@ -238,9 +286,58 @@ export function AdminConsole() {
           </ul>
         )}
 
-        <p className={styles.cardText} style={{ margin: "14px 0 0", color: "var(--muted, #9aa3b5)" }}>
-          Bulk import from a CSV is coming next.
-        </p>
+        <div style={{ borderTop: "1px solid var(--line, #e6e8eb)", marginTop: 16, paddingTop: 14 }}>
+          <div className={styles.cardLabel}>
+            Invite members (CSV)
+            <InfoTip>
+              Upload a CSV with one email per row (optionally email,label). Each becomes a reserved
+              name your members can claim when they sign in.
+            </InfoTip>
+          </div>
+
+          {admin.invites.length > 0 && (
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
+              {admin.invites.map((i) => (
+                <li
+                  key={i.email}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "7px 0",
+                    borderTop: "1px solid var(--line, #e6e8eb)",
+                    fontSize: 13,
+                  }}
+                >
+                  <span className={styles.mono}>
+                    {i.label}.{admin.parent}
+                  </span>
+                  <span style={{ color: "var(--muted, #6b7280)" }}>{i.email} · invited</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <label className={styles.ghostButton} style={{ display: "inline-block" }}>
+            {importing ? "Importing…" : "Upload CSV"}
+            <input
+              type="file"
+              accept=".csv,text/csv,text/plain"
+              style={{ display: "none" }}
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleImport(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {importMsg && (
+            <span style={{ marginLeft: 10, fontSize: 13, color: "var(--muted, #6b7280)" }}>
+              {importMsg}
+            </span>
+          )}
+        </div>
       </section>
     );
   }

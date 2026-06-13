@@ -6,9 +6,9 @@
 
 .button {
   appearance: none;
-  border: 1px solid #2c3a5e;
-  background: #7c9eff;
-  color: #0f1117;
+  border: 1px solid var(--accent, #3889ff);
+  background: var(--accent, #3889ff);
+  color: #ffffff;
   font: 600 15px/1 inherit;
   padding: 12px 20px;
   border-radius: 10px;
@@ -17,7 +17,7 @@
 }
 
 .button:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
 }
 
 .button:disabled {
@@ -26,6 +26,6 @@
 }
 
 .who {
-  color: #9aa3b5;
+  color: var(--muted, #6b7280);
   font-size: 14px;
 }
