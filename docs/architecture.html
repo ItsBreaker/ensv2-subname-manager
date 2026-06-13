@@ -93,6 +93,18 @@
   </div>
 </header>
 
+<div class="callout good">
+  <span class="tag">Updates since this plan — as built (June 2026)</span>
+  Parts of this plan were superseded during the build. Where the sections below conflict, these points win:
+  <ul style="margin:10px 0 0">
+    <li><strong>NameStone dropped.</strong> It requires a parent the platform controls plus per-domain enablement — incompatible with self-serve, user-owned names. Subname issuance is now <strong>onchain-first</strong> on the ENSv2 <strong>PermissionedRegistry</strong>: each parent issues through its own <strong>UserRegistry</strong> subregistry, deployed as a proxy via the VerifiableFactory (same pattern as the per-account resolver). The offchain option is deferred to <em>our own</em> CCIP-Read gateway (Durin-style), not a third party.</li>
+    <li><strong>Platform-mediated issuance.</strong> A member holds no registrar role, so the platform issues on their behalf — but only after verifying eligibility <em>server-side</em>: Privy access token &rarr; verified email &rarr; enrolled-org domain match. A platform key holding <code>ROLE_REGISTRAR</code> mints the subname to the member's own wallet. Email = eligibility, never authority.</li>
+    <li><strong>Enrollment is database-backed (Supabase):</strong> a <code>domain &rarr; parent</code> table plus an index of issued subnames; lookups are server-only. Public email providers (gmail, outlook) route to a self-serve path rather than org enrollment.</li>
+    <li><strong>Names resolve and carry profiles.</strong> Subnames are minted pointing at a platform resolver with an address record set, so they resolve to the owner's wallet; members edit text records (display name, avatar, url) from the manager.</li>
+    <li><strong>Golden path, as built:</strong> email login &rarr; embedded wallet &rarr; eligibility check &rarr; claim a real onchain subname &rarr; it resolves &rarr; edit profile. Validated live on Sepolia. Reference implementation for the onchain calls: <a href="https://github.com/gskril/ens-cli">gskril/ens-cli</a> + <a href="https://github.com/ensdomains/namechain">ensdomains/namechain</a>.</li>
+  </ul>
+</div>
+
 <div class="card tight">
   <div class="label">Contents</div>
   <nav class="toc">

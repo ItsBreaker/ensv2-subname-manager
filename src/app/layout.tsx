@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Subname Manager",
-  description: "Onboard-to-ENS subname manager — ETHGlobal New York 2026",
+  description: "Claim your own ENS name under your organization.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

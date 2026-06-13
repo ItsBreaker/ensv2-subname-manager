@@ -5,6 +5,8 @@ import { getSupabase } from "@/lib/supabase";
 import { HttpError, toErrorResponse, verifyMember } from "@/lib/auth";
 
 export const runtime = "nodejs";
+// Writing records waits for a tx confirmation — raise the serverless timeout.
+export const maxDuration = 60;
 
 /** Text-record keys a member may set on their profile. */
 const ALLOWED_KEYS = new Set(["name", "description", "url", "avatar", "com.twitter", "com.github"]);

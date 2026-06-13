@@ -39,7 +39,7 @@ function PrivyLoginButton() {
         Sign in with email
       </button>
       <InfoTip>
-        Sign in with just your email — we&apos;ll create a secure wallet for you behind the
+        Sign in with just your email. We&apos;ll create a secure wallet for you behind the
         scenes. No crypto knowledge needed.
       </InfoTip>
     </div>

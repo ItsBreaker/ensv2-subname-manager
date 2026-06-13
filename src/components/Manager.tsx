@@ -182,7 +182,7 @@ export function Manager({ session }: { session: Session }) {
         <dl className={styles.defs}>
           <div className={styles.defRow}>
             <dt>Email</dt>
-            <dd>{email ?? "—"}</dd>
+            <dd>{email ?? "not set"}</dd>
           </div>
           <div className={styles.defRow}>
             <dt>
@@ -196,7 +196,7 @@ export function Manager({ session }: { session: Session }) {
           </div>
           <div className={styles.defRow}>
             <dt>Verified domain</dt>
-            <dd className={styles.mono}>{verifiedEmailDomain ?? "—"}</dd>
+            <dd className={styles.mono}>{verifiedEmailDomain ?? "not set"}</dd>
           </div>
         </dl>
       </section>
@@ -213,13 +213,13 @@ export function Manager({ session }: { session: Session }) {
           {myName ? (
             <>
               <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
-                ✓ Your name
+                Your name
               </div>
               <p className={styles.cardText}>
                 You own <strong>{myName}</strong>
                 {result && (
                   <>
-                    {" — "}
+                    {" ("}
                     <a
                       href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
                       target="_blank"
@@ -227,11 +227,12 @@ export function Manager({ session }: { session: Session }) {
                     >
                       view transaction
                     </a>
+                    {")"}
                   </>
                 )}
                 . It resolves to your wallet. Add profile records below.
                 <InfoTip>
-                  These are public details attached to your name — anyone looking up {myName} can see
+                  These are public details attached to your name. Anyone looking up {myName} can see
                   them. All optional.
                 </InfoTip>
               </p>
@@ -258,7 +259,7 @@ export function Manager({ session }: { session: Session }) {
                 >
                   {saveStatus === "saving" ? "Saving…" : "Save profile"}
                 </button>
-                {saveStatus === "done" && <span className={styles.success}>Saved ✓</span>}
+                {saveStatus === "done" && <span className={styles.success}>Saved</span>}
               </div>
               {saveStatus === "error" && (
                 <p className={styles.notice}>
@@ -289,7 +290,7 @@ export function Manager({ session }: { session: Session }) {
           ) : (
             <>
               <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
-                ✓ Eligible
+                Eligible
               </div>
               <p className={styles.cardText}>
                 Your email domain <code>{verifiedEmailDomain}</code> is linked to{" "}
@@ -311,7 +312,7 @@ export function Manager({ session }: { session: Session }) {
         <section className={styles.card}>
           <div className={styles.cardLabel}>Not set up yet</div>
           <p className={styles.cardText} style={{ margin: 0 }}>
-            <code>{verifiedEmailDomain ?? "—"}</code> isn&apos;t enrolled with an organization yet.
+            <code>{verifiedEmailDomain ?? "your domain"}</code> isn&apos;t enrolled with an organization yet.
             Auto-provisioning a name for your organization is coming soon.
           </p>
         </section>
