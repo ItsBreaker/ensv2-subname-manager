@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import type { Session } from "@/hooks/useSession";
 import { InfoTip } from "./InfoTip";
@@ -19,25 +19,58 @@ function shortAddress(address: string): string {
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
 
+type OrgState =
+  | { loading: true }
+  | { loading: false; org: { parent: string } | null; isPublicDomain: boolean };
+
 /**
- * The manager shell — where a logged-in member lands (architecture doc §3). Shows the unified
- * session, the org-eligibility match, and the issue control. Claiming calls POST /api/issue, which
- * verifies eligibility (Privy token → verified domain → enrolled org) server-side and has the
- * platform's manager key mint the real onchain subname to the member's wallet.
+ * The manager shell — where a logged-in member lands (architecture doc §3). Eligibility (the
+ * domain → org match) is fetched from /api/org since that lookup is server-only (Supabase). Claiming
+ * calls /api/issue, which re-verifies eligibility and has the platform's manager key mint the real
+ * onchain subname to the member's wallet.
  */
 export function Manager({ session }: { session: Session }) {
-  const { email, verifiedEmailDomain, address, org, logout } = session;
+  const { email, verifiedEmailDomain, address, logout } = session;
   const { getAccessToken } = usePrivy();
 
+  const [orgState, setOrgState] = useState<OrgState>({ loading: true });
   const [label, setLabel] = useState(() => defaultLabel(email));
   const [status, setStatus] = useState<IssueStatus>("idle");
   const [result, setResult] = useState<IssueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch the caller's org eligibility from the server (DB access is server-only).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/org", { headers: { authorization: `Bearer ${token}` } });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          org?: { parent: string } | null;
+          isPublicDomain?: boolean;
+        };
+        if (cancelled) return;
+        if (res.ok && data.ok) {
+          setOrgState({ loading: false, org: data.org ?? null, isPublicDomain: !!data.isPublicDomain });
+        } else {
+          setOrgState({ loading: false, org: null, isPublicDomain: false });
+        }
+      } catch {
+        if (!cancelled) setOrgState({ loading: false, org: null, isPublicDomain: false });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [getAccessToken]);
+
+  const org = orgState.loading ? null : orgState.org;
   const fqdn = org && label ? `${label}.${org.parent}` : null;
   const canIssue = Boolean(org && label) && status !== "issuing";
 
-  async function handleIssue() {
+  const handleIssue = useCallback(async () => {
     if (!org || !label) return;
     setStatus("issuing");
     setError(null);
@@ -59,7 +92,7 @@ export function Manager({ session }: { session: Session }) {
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
     }
-  }
+  }, [org, label, getAccessToken]);
 
   return (
     <div className={styles.wrap}>
@@ -86,9 +119,7 @@ export function Manager({ session }: { session: Session }) {
                 need a seed phrase or browser extension.
               </InfoTip>
             </dt>
-            <dd className={styles.mono}>
-              {address ? shortAddress(address) : "provisioning…"}
-            </dd>
+            <dd className={styles.mono}>{address ? shortAddress(address) : "provisioning…"}</dd>
           </div>
           <div className={styles.defRow}>
             <dt>Verified domain</dt>
@@ -97,8 +128,14 @@ export function Manager({ session }: { session: Session }) {
         </dl>
       </section>
 
-      {/* Org eligibility match */}
-      {org ? (
+      {/* Eligibility */}
+      {orgState.loading ? (
+        <section className={styles.card}>
+          <p className={styles.cardText} style={{ margin: 0 }}>
+            Checking your organization…
+          </p>
+        </section>
+      ) : org ? (
         <section className={styles.card}>
           <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
             ✓ Eligible
@@ -148,13 +185,20 @@ export function Manager({ session }: { session: Session }) {
             </p>
           )}
         </section>
+      ) : orgState.isPublicDomain ? (
+        <section className={styles.card}>
+          <div className={styles.cardLabel}>Personal account</div>
+          <p className={styles.cardText} style={{ margin: 0 }}>
+            <code>{verifiedEmailDomain}</code> is a personal email provider, so there&apos;s no
+            organization to join. Registering your own name (self-serve) is coming soon.
+          </p>
+        </section>
       ) : (
         <section className={styles.card}>
-          <div className={styles.cardLabel}>Not linked to an organization</div>
-          <p className={styles.cardText}>
-            Your email domain <code>{verifiedEmailDomain ?? "—"}</code> isn&apos;t enrolled with any
-            organization yet, so there&apos;s no name to claim. To try the demo, add your domain to{" "}
-            <code>src/lib/orgs.ts</code>.
+          <div className={styles.cardLabel}>Not set up yet</div>
+          <p className={styles.cardText} style={{ margin: 0 }}>
+            <code>{verifiedEmailDomain ?? "—"}</code> isn&apos;t enrolled with an organization yet.
+            Auto-provisioning a name for your organization is coming soon.
           </p>
         </section>
       )}

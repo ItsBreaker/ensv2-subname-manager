@@ -1,36 +1,72 @@
+import { getSupabase } from "./supabase";
+
 /**
- * Pre-enrolled organizations: the map from a verified email *domain* to an ENS parent
- * name. This is the "email = eligibility" half of the authority model (architecture doc §2):
- * a member whose verified email domain matches an enrolled org may receive a subname under
- * that org's parent. It deliberately grants NO authority over the parent itself.
+ * Enrolled organizations: the map from a verified email *domain* to an ENS parent name, now backed
+ * by the Supabase `orgs` table (was a hardcoded array). This is the "email = eligibility" half of
+ * the authority model (architecture doc §2) — it grants NO authority over the parent itself.
  *
- * Phase 1 uses a static list (one demo org). Later this becomes the output of the org
- * enrollment flow (§5), backed by real storage.
+ * SERVER-ONLY: getOrgByDomain queries Supabase with the secret key, so it must only be called from
+ * API routes, never from client components.
  */
 
 export interface EnrolledOrg {
-  /** Verified email domain that qualifies a member, e.g. "democlub.com". */
+  /** Verified email domain that qualifies a member, e.g. "acme.com". */
   domain: string;
-  /** ENS parent the member receives a subname under, e.g. "democlub.eth". */
+  /** ENS parent the member receives a subname under, e.g. "acme.eth". */
   parent: string;
-  /** Issuance policy chosen at enrollment (golden path = offchain). */
-  issuance: "offchain" | "onchain";
+  /** Deployed UserRegistry subregistry address (null until provisioned). */
+  subregistry: string | null;
+  /** Issuance policy chosen at enrollment. */
+  issuance: "onchain" | "offchain";
+  /** Who controls the parent: the platform, or a user/org admin. */
+  ownerModel: "platform" | "user";
+  /** Address that owns the parent. */
+  parentOwner: string | null;
+  status: "active" | "pending" | "taken";
 }
 
 /**
- * Demo enrollment. `democlub.eth` is registered on Sepolia (see scripts/register-parent.ts).
- *
- * To try the golden path with your own login, add your email's domain here — e.g. for
- * testing with a gmail address, temporarily add `{ domain: "gmail.com", parent: "democlub.eth",
- * issuance: "offchain" }`. (In production an org would never enroll a public domain like gmail.)
+ * Public email providers. Users on these domains are NOT org members — they belong to the
+ * self-serve path (register their own name), never auto-enrolled under a shared "provider org".
  */
-export const ENROLLED_ORGS: EnrolledOrg[] = [
-  { domain: "democlub.com", parent: "democlub.eth", issuance: "offchain" },
-  { domain: "gmail.com", parent: "democlub.eth", issuance: "onchain" },
-];
+const PUBLIC_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "yahoo.com",
+  "icloud.com",
+  "me.com",
+  "proton.me",
+  "protonmail.com",
+  "aol.com",
+  "gmx.com",
+]);
 
-/** Look up an enrolled org by verified email domain (case-insensitive). */
-export function findOrgByDomain(domain: string): EnrolledOrg | undefined {
+export function isPublicEmailDomain(domain: string): boolean {
+  return PUBLIC_EMAIL_DOMAINS.has(domain.trim().toLowerCase());
+}
+
+/** Look up an enrolled org by verified email domain (case-insensitive). Server-only. */
+export async function getOrgByDomain(domain: string): Promise<EnrolledOrg | null> {
   const d = domain.trim().toLowerCase();
-  return ENROLLED_ORGS.find((o) => o.domain.toLowerCase() === d);
+  const { data, error } = await getSupabase()
+    .from("orgs")
+    .select("domain, parent, subregistry, issuance, owner_model, parent_owner, status")
+    .eq("domain", d)
+    .maybeSingle();
+
+  if (error) throw new Error(`orgs lookup failed: ${error.message}`);
+  if (!data) return null;
+
+  return {
+    domain: data.domain,
+    parent: data.parent,
+    subregistry: data.subregistry,
+    issuance: data.issuance,
+    ownerModel: data.owner_model,
+    parentOwner: data.parent_owner,
+    status: data.status,
+  };
 }

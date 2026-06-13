@@ -58,6 +58,17 @@ The `UserRegistry` implementation (the subregistry proxy impl) is pinned at
 runs with just RPC + a funded key (`npm run issue:subname`). Subregistry salt = `keccak256(abi.encode(
 keccak256("UserRegistry"), namehash(name), 0))`; subname-owner roles = `V2_DEFAULT_OWNER_ROLE_BITMAP`.
 
+## Enrollment + issuance API (server-side)
+
+Org enrollment is **Supabase-backed** (`orgs` table; `subnames` indexes issued names — see
+`supabase/schema.sql`). DB access is **server-only** via the SECRET key (`src/lib/supabase.ts`); the
+browser never touches Supabase. The UI gets eligibility from `GET /api/org` and claims via
+`POST /api/issue`. Both verify the caller's Privy token server-side (`src/lib/auth.ts` `verifyMember`)
+→ derive the verified email domain → match an enrolled org → the **platform's `ISSUER_PRIVATE_KEY`**
+(holds `ROLE_REGISTRAR`) mints to the member's wallet. Public email domains (gmail/outlook) are
+routed to self-serve, not org-enrolled. Server-only env: `PRIVY_APP_SECRET`, `ISSUER_PRIVATE_KEY`,
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
+
 ## Build priority order
 
 When time is short, never sacrifice a working core for a second half-working integration:
