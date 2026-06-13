@@ -36,4 +36,6 @@ Thumbs.db
 
 # claude code local settings (personal, not shared)
 .claude/settings.local.json
-"reference/" 
+
+# local reference clones (e.g. gskril/ens-cli) — not part of this repo
+reference/
