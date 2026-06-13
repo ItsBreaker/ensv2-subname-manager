@@ -20,6 +20,7 @@ create table if not exists public.orgs (
   status        text not null default 'active'
                   check (status in ('active', 'pending', 'taken')),
   open_enrollment boolean not null default false,         -- true: anyone may claim under this parent
+  admin_email   text,                                     -- the org's admin (bootstrap; set on provision)
   commit_secret text,                                     -- commit/reveal secret while pending
   ready_at      timestamptz,                              -- when the commitment matures (pending)
   created_at    timestamptz not null default now(),
@@ -30,9 +31,12 @@ create table if not exists public.orgs (
 --       alter table public.orgs add column if not exists commit_secret text;
 --       alter table public.orgs add column if not exists ready_at timestamptz;
 --       alter table public.orgs add column if not exists open_enrollment boolean not null default false;
+--       alter table public.orgs add column if not exists admin_email text;
 --     (commit_secret holds the commit/reveal secret while status='pending'; open_enrollment lets
---      anyone claim under the parent regardless of email domain.) To open the demo org:
+--      anyone claim under the parent regardless of email domain; admin_email is the org's admin.)
+--     To open the demo org and make yourself its admin (use YOUR login email):
 --       update public.orgs set open_enrollment = true where parent = 'democlub.eth';
+--       update public.orgs set admin_email = 'you@example.com' where parent = 'democlub.eth';
 
 -- 2) Issued subnames: an index/cache of on-chain issuance (for UX + duplicate checks).
 create table if not exists public.subnames (

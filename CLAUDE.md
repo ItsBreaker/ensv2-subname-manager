@@ -77,6 +77,15 @@ then, after the client waits, `POST /api/provision/finish` (mint test token if n
 register → mark active; idempotent if the name is already ours). The platform key (`ISSUER_PRIVATE_KEY`)
 pays gas + holds the name. Requires the `orgs` columns `commit_secret` + `ready_at` (see supabase/schema.sql).
 
+**Entry modes + admin console:** the UI has a member/admin split (`GoldenPath` doors + a header toggle).
+Members claim names; admins manage the org. The provisioner is recorded as the org's admin
+(`orgs.admin_email` — bootstrap only; DNS/CRE proof to harden later). `AdminConsole` shows the org
+set-up (provisioning) or the members list (`GET /api/admin/org`) with removal
+(`POST /api/admin/remove` — **revokes on-chain** via `unregister` then de-lists; the platform holds
+`ROLE_UNREGISTER` on the subregistry root, which the EAC ORs onto every token, so subnames are
+revocable by the org). Open enrollment: `orgs.open_enrollment` lets public-email users claim
+under a typed org name. Next: CSV bulk import, then DNS/CRE admin proof, then subgroups (EAC).
+
 ## Build priority order
 
 When time is short, never sacrifice a working core for a second half-working integration:
