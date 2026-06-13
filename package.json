@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "register:parent": "node --env-file=.env.local --import tsx scripts/register-parent.ts"
+    "register:parent": "node --env-file=.env.local --import tsx scripts/register-parent.ts",
+    "issue:subname": "node --env-file=.env.local --import tsx scripts/issue-subname.ts"
   },
   "dependencies": {
     "@privy-io/react-auth": "^2.0.0",

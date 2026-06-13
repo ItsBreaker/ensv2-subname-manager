@@ -1,18 +1,16 @@
 /**
- * SubnameIssuer — the one internal interface with two backends (architecture doc §6).
- * The manager picks per-org at enrollment which backend to use.
+ * SubnameIssuer — one internal interface, two backends (architecture doc §6); the manager picks
+ * per-org at enrollment.
  *
- *   OffchainIssuer → NameStone REST write + CCIP-Read resolution (gasless) — Phase 1, TODO below.
- *   OnchainIssuer  → real subname via setSubnodeRecord (holder-owned, gas per issue).
+ *   OnchainIssuer  → real ENSv2 subname tokens via the parent's UserRegistry subregistry (primary).
+ *   OffchainIssuer → gasless offchain records via our own CCIP-Read gateway (option; not built yet).
  *
- * The OnchainIssuer here mirrors the *proven* calls from the booth reference
- * gskril/ens-cli (`commands/subname.ts`): read the parent owner, then route to
- * NameWrapper.setSubnodeRecord (wrapped parent) or ENS registry.setSubnodeRecord
- * (unwrapped parent). This is exactly the architecture doc's "v1 fallback".
+ * Onchain flow (matches the user's model: any user owns a parent and issues subnames under it):
+ *   1. ensure the parent has a subregistry (deploy + attach a UserRegistry if missing)
+ *   2. register(label, owner, 0, resolver, roleBitmap, expiry) on that subregistry → mints the subname
  *
- * NOTE: the v2 PermissionedRegistry EAC create-subname path is NOT in ens-cli, so it
- * is intentionally left as a documented TODO (see issueViaV2Eac). Reference for it is the
- * ENSv2 "build a subname registrar on the Permissioned Registry" tutorial, not this CLI.
+ * Org delegation (the "manager" role from §2/§5) = grantManagerRole(): the parent owner grants a
+ * manager/platform address ROLE_REGISTRAR on the subregistry so it can issue on the org's behalf.
  */
 
 import {
@@ -21,27 +19,31 @@ import {
   type PublicClient,
   type WalletClient,
   getAddress,
-  isAddressEqual,
   zeroAddress,
 } from "viem";
-import { labelhash, namehash, normalize } from "viem/ens";
-import { CONTRACTS, V1_CONTRACTS } from "../contracts";
-import { ensRegistryAbi, nameWrapperAbi } from "./abis";
+import { normalize } from "viem/ens";
+import { permissionedRegistryAbi } from "./abis";
+import { extractLabel } from "./registration";
+import { ensureParentSubregistry, getParentState } from "./subregistry";
+import {
+  V2_DEFAULT_OWNER_ROLE_BITMAP,
+  ROLE_REGISTRAR,
+  ROLE_REGISTRAR_ADMIN,
+  ROOT_RESOURCE,
+} from "./roles";
 
 export type IssuanceMode = "onchain" | "offchain";
 
 export interface IssueArgs {
-  /** Parent name, e.g. "democlub.eth". */
+  /** Parent name, e.g. "democlub.eth" (2LD .eth supported for now). */
   parent: string;
   /** Leftmost label to create, e.g. "alice". */
   label: string;
   /** Address that will own the new subname. */
   owner: Address;
-  /** Resolver for the subname (default: the v1 public resolver). */
+  /** Resolver for the subname (default: none — set later to hold records). */
   resolver?: Address;
-  /** NameWrapper fuses bitmask — ignored on unwrapped parents (default: 0). */
-  fuses?: number;
-  /** NameWrapper expiry as a unix timestamp — ignored on unwrapped parents (default: 0). */
+  /** Expiry as a unix timestamp (default: the parent's expiry; a subname can't outlive its parent). */
   expiry?: bigint;
 }
 
@@ -52,8 +54,8 @@ export interface IssuedSubname {
   owner: Address;
   resolver: Address;
   mode: IssuanceMode;
-  /** Whether the parent was wrapped (NameWrapper path) vs. unwrapped (registry path). */
-  wrapped: boolean;
+  /** The parent's subregistry the subname was minted into. */
+  subregistry: Address;
   txHash: Hex;
 }
 
@@ -67,11 +69,17 @@ export interface Clients {
   walletClient: WalletClient;
 }
 
-/** TTL for created subnames — matches the reference (0 = inherit). */
-const TTL = 0n;
-
 export class OnchainIssuer implements SubnameIssuer {
   constructor(private readonly clients: Clients) {}
+
+  /**
+   * Ensure the parent can issue onchain subnames (deploy + attach a UserRegistry if needed).
+   * Exposed so a one-time org setup can run this before the first issue. 2 txs on first call.
+   */
+  ensureSubregistry(parent: string) {
+    const { publicClient, walletClient } = this.clients;
+    return ensureParentSubregistry(publicClient, walletClient, parent);
+  }
 
   async issue(args: IssueArgs): Promise<IssuedSubname> {
     const { publicClient, walletClient } = this.clients;
@@ -79,98 +87,86 @@ export class OnchainIssuer implements SubnameIssuer {
     if (!account) throw new Error("walletClient has no account — connect a wallet first.");
 
     const parent = normalize(args.parent);
+    const parentLabel = extractLabel(parent); // validates 2LD .eth → "democlub"
     const label = normalize(args.label);
     if (label.includes(".")) {
       throw new Error(`Expected a single label (e.g. "alice"), got "${label}".`);
     }
     const owner = getAddress(args.owner);
-    const resolver = args.resolver ? getAddress(args.resolver) : V1_CONTRACTS.PublicResolver;
-    const parentNode = namehash(parent);
-    const fqdn = `${label}.${parent}`;
+    const resolver = args.resolver ? getAddress(args.resolver) : zeroAddress;
 
-    // A subname can only be created onchain if the parent has an owner in the registry.
-    const parentRegistryOwner = await publicClient.readContract({
-      address: V1_CONTRACTS.ENSRegistry,
-      abi: ensRegistryAbi,
-      functionName: "owner",
-      args: [parentNode],
-    });
-    if (parentRegistryOwner === zeroAddress) {
-      throw new Error(
-        `Parent "${parent}" has no owner in the ENS registry, so a subname cannot be created onchain.`,
-      );
-    }
+    // 1. Parent must have a subregistry to mint into.
+    const { subregistry } = await ensureParentSubregistry(publicClient, walletClient, parent);
 
-    const wrapped = isAddressEqual(parentRegistryOwner, CONTRACTS.NameWrapper);
+    // 2. Subnames can't outlive the parent — default to the parent's expiry.
+    const expiry = args.expiry ?? (await getParentState(publicClient, parentLabel)).expiry;
 
-    if (wrapped) {
-      // Parent is wrapped — the registry owner is the NameWrapper; the real owner is wrapped.
-      const wrappedOwner = await publicClient.readContract({
-        address: CONTRACTS.NameWrapper,
-        abi: nameWrapperAbi,
-        functionName: "ownerOf",
-        args: [BigInt(parentNode)],
-      });
-      if (wrappedOwner === zeroAddress) {
-        throw new Error(
-          `Parent "${parent}" is held by the NameWrapper but has no wrapped owner (likely expired).`,
-        );
-      }
-
-      const { request } = await publicClient.simulateContract({
-        account,
-        address: CONTRACTS.NameWrapper,
-        abi: nameWrapperAbi,
-        functionName: "setSubnodeRecord",
-        args: [parentNode, label, owner, resolver, TTL, args.fuses ?? 0, args.expiry ?? 0n],
-      });
-      const txHash = await walletClient.writeContract(request);
-      return { fqdn, label, parent, owner, resolver, mode: "onchain", wrapped: true, txHash };
-    }
-
-    // Unwrapped parent — create the subnode directly on the registry.
+    // 3. Mint the subname into the subregistry.
     const { request } = await publicClient.simulateContract({
       account,
-      address: V1_CONTRACTS.ENSRegistry,
-      abi: ensRegistryAbi,
-      functionName: "setSubnodeRecord",
-      args: [parentNode, labelhash(label), owner, resolver, TTL],
+      address: subregistry,
+      abi: permissionedRegistryAbi,
+      functionName: "register",
+      args: [label, owner, zeroAddress, resolver, V2_DEFAULT_OWNER_ROLE_BITMAP, expiry],
     });
     const txHash = await walletClient.writeContract(request);
-    return { fqdn, label, parent, owner, resolver, mode: "onchain", wrapped: false, txHash };
+
+    return {
+      fqdn: `${label}.${parent}`,
+      label,
+      parent,
+      owner,
+      resolver,
+      mode: "onchain",
+      subregistry,
+      txHash,
+    };
   }
 
   /**
-   * TODO (Phase 2/3): the booth reference has no revoke flow. Onchain revocation means the
-   * parent owner reassigns/clears the subnode (setSubnodeRecord to a new owner / zero address,
-   * or a v2 EAC role revoke). Implement deliberately rather than guessing.
+   * TODO: revoke = burn/reclaim the subname via ROLE_UNREGISTER on the subregistry. The exact
+   * unregister entrypoint needs verifying against the deployed contract before relying on it.
    */
   async revoke(_fqdn: string): Promise<void> {
-    throw new Error("OnchainIssuer.revoke is not implemented yet (no reference in ens-cli).");
+    throw new Error("OnchainIssuer.revoke is not implemented yet (verify the unregister call first).");
   }
 }
 
 /**
- * Placeholder for the gasless Phase 1 golden path. Not part of the ens-cli reference —
- * NameStone has its own REST API + CCIP-Read resolution. Wired in Phase 1.
+ * Delegate issuance to a manager/platform: grant ROLE_REGISTRAR (+ its admin) on a parent's
+ * subregistry so that account can register subnames on the org's behalf (architecture doc §5).
+ * Must be sent by an account holding the admin role (the registry owner). Returns the tx hash.
+ */
+export function grantManagerRole(
+  clients: Clients,
+  args: { subregistry: Address; manager: Address; roleBitmap?: bigint; resource?: bigint },
+): Promise<Hex> {
+  const { publicClient, walletClient } = clients;
+  const account = walletClient.account;
+  if (!account) throw new Error("walletClient has no account — connect a wallet first.");
+  const roleBitmap = args.roleBitmap ?? (ROLE_REGISTRAR | ROLE_REGISTRAR_ADMIN);
+  const resource = args.resource ?? ROOT_RESOURCE;
+  return publicClient
+    .simulateContract({
+      account,
+      address: getAddress(args.subregistry),
+      abi: permissionedRegistryAbi,
+      functionName: "grantRoles",
+      args: [resource, roleBitmap, getAddress(args.manager)],
+    })
+    .then(({ request }) => walletClient.writeContract(request));
+}
+
+/**
+ * Placeholder for the gasless offchain option. NameStone was dropped (it requires a parent the
+ * platform controls + per-domain enablement — incompatible with self-serve user-owned names).
+ * The offchain path will be OUR OWN self-hosted CCIP-Read gateway (Durin-style). Not built yet.
  */
 export class OffchainIssuer implements SubnameIssuer {
   async issue(_args: IssueArgs): Promise<IssuedSubname> {
-    throw new Error("OffchainIssuer (NameStone) is not implemented yet — Phase 1 golden path.");
+    throw new Error("OffchainIssuer (self-hosted CCIP-Read gateway) is not implemented yet.");
   }
   async revoke(_fqdn: string): Promise<void> {
-    throw new Error("OffchainIssuer.revoke is not implemented yet — Phase 1 golden path.");
+    throw new Error("OffchainIssuer.revoke is not implemented yet.");
   }
-}
-
-/**
- * TODO: v2 PermissionedRegistry EAC create-subname. The architecture doc's *primary* onchain
- * target, but absent from ens-cli — so not adapted here. Reference: ENSv2 "build a subname
- * registrar on the Permissioned Registry" tutorial + PermissionedRegistry (CONTRACTS.PermissionedRegistry).
- * Until then, OnchainIssuer uses the proven NameWrapper/registry path above.
- */
-export function issueViaV2Eac(): never {
-  throw new Error(
-    "v2 PermissionedRegistry EAC issuance not implemented yet — see ENSv2 subname-registrar tutorial.",
-  );
 }

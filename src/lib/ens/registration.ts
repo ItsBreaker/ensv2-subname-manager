@@ -264,17 +264,16 @@ export function ownedResolverSalt(admin: Address): bigint {
   );
 }
 
-/** Predict the resolver proxy address for a deployer/salt without sending a transaction. */
-export function predictResolverAddress(args: {
-  deployer: Address;
-  admin?: Address;
-  salt?: bigint;
-}): Address {
+/**
+ * Predict the address of any VerifiableFactory proxy from (deployer, salt). The proxy address
+ * depends only on the factory, the shared proxy logic, the deployer, and the salt — NOT on the
+ * implementation — so this is reused for both per-account resolvers and per-name subregistries
+ * (CONTRACTS.resolverFactory/resolverProxyLogic are the generic VerifiableFactory + its proxy logic).
+ */
+export function predictProxyAddress(args: { deployer: Address; salt: bigint }): Address {
   const deployer = getAddress(args.deployer);
-  const admin = args.admin ? getAddress(args.admin) : deployer;
-  const salt = args.salt ?? ownedResolverSalt(admin);
   const outerSalt = keccak256(
-    encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [deployer, salt]),
+    encodeAbiParameters([{ type: "address" }, { type: "uint256" }], [deployer, args.salt]),
   );
   // EIP-1167 minimal proxy, with the runtime length byte bumped to 0x4d so the
   // VerifiableFactory can append the 32-byte outer salt for on-chain verification.
@@ -290,6 +289,18 @@ export function predictResolverAddress(args: {
     opcode: "CREATE2",
     salt: outerSalt,
   });
+}
+
+/** Predict the resolver proxy address for a deployer/salt without sending a transaction. */
+export function predictResolverAddress(args: {
+  deployer: Address;
+  admin?: Address;
+  salt?: bigint;
+}): Address {
+  const deployer = getAddress(args.deployer);
+  const admin = args.admin ? getAddress(args.admin) : deployer;
+  const salt = args.salt ?? ownedResolverSalt(admin);
+  return predictProxyAddress({ deployer, salt });
 }
 
 /** True if a resolver proxy is already deployed at the predicted address. */
