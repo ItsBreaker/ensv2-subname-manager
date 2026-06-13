@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import type { Session } from "@/hooks/useSession";
 import type { Mode } from "./GoldenPath";
+import { AdminConsole } from "./AdminConsole";
 import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
 
@@ -18,18 +19,10 @@ function shortAddress(address: string): string {
 
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
-type NameOption = { label: string; fqdn: string; available: boolean };
 
 type OrgState =
   | { loading: true }
   | { loading: false; org: { parent: string } | null; isPublicDomain: boolean; subname: string | null };
-
-type ProvPhase =
-  | { phase: "loading" }
-  | { phase: "suggest"; options: NameOption[] }
-  | { phase: "registering"; parent: string; readyAt: number }
-  | { phase: "done"; parent: string }
-  | { phase: "error"; message: string };
 
 const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
   { key: "name", label: "Display name", placeholder: "Jayden" },
@@ -38,6 +31,16 @@ const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
   { key: "avatar", label: "Avatar URL", placeholder: "https://…/me.png" },
   { key: "com.twitter", label: "Twitter", placeholder: "yourhandle" },
 ];
+
+const linkButtonStyle: React.CSSProperties = {
+  appearance: "none",
+  border: "none",
+  background: "none",
+  padding: 0,
+  color: "var(--accent)",
+  cursor: "pointer",
+  font: "inherit",
+};
 
 export function Manager({
   session,
@@ -58,10 +61,6 @@ export function Manager({
   const [result, setResult] = useState<IssueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showClaim, setShowClaim] = useState(false);
-
-  const [prov, setProv] = useState<ProvPhase>({ phase: "loading" });
-  const [now, setNow] = useState<number>(() => Date.now());
-  const finishingRef = useRef(false);
 
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -96,80 +95,9 @@ export function Manager({
     void loadOrg();
   }, [loadOrg]);
 
-  // For an unprovisioned org domain, load suggestions (or resume an in-flight registration).
-  useEffect(() => {
-    if (orgState.loading || orgState.org || orgState.isPublicDomain) return;
-    let cancelled = false;
-    setProv({ phase: "loading" });
-    (async () => {
-      try {
-        const token = await getAccessToken();
-        const res = await fetch("/api/provision", { headers: { authorization: `Bearer ${token}` } });
-        const data = (await res.json()) as {
-          kind?: string;
-          parent?: string;
-          readyAt?: string | null;
-          options?: NameOption[];
-        };
-        if (cancelled) return;
-        if (data.kind === "pending" && data.parent) {
-          setProv({
-            phase: "registering",
-            parent: data.parent,
-            readyAt: data.readyAt ? new Date(data.readyAt).getTime() : Date.now(),
-          });
-        } else if (data.kind === "unprovisioned") {
-          setProv({ phase: "suggest", options: data.options ?? [] });
-        } else {
-          setProv({ phase: "suggest", options: [] });
-        }
-      } catch {
-        if (!cancelled) setProv({ phase: "suggest", options: [] });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [orgState, getAccessToken]);
-
-  useEffect(() => {
-    if (prov.phase !== "registering") return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [prov.phase]);
-
-  useEffect(() => {
-    if (prov.phase !== "registering") {
-      finishingRef.current = false;
-      return;
-    }
-    if (now < prov.readyAt || finishingRef.current) return;
-    finishingRef.current = true;
-    const parent = prov.parent;
-    (async () => {
-      try {
-        const token = await getAccessToken();
-        const res = await fetch("/api/provision/finish", {
-          method: "POST",
-          headers: { authorization: `Bearer ${token}` },
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string };
-        if (res.ok && data.ok) {
-          setProv({ phase: "done", parent });
-          await loadOrg();
-        } else {
-          setProv({ phase: "error", message: data.error ?? "Registration failed." });
-        }
-      } catch (e) {
-        setProv({ phase: "error", message: e instanceof Error ? e.message : "Registration failed." });
-      }
-    })();
-  }, [prov, now, getAccessToken, loadOrg]);
-
   const org = orgState.loading ? null : orgState.org;
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
 
-  // Issue under the domain-matched org (no parentOverride) or a typed open org (parentOverride).
   const handleIssue = useCallback(
     async (parentOverride?: string) => {
       if (!label) return;
@@ -219,34 +147,6 @@ export function Manager({
     }
   }, [profile, getAccessToken]);
 
-  const handleProvision = useCallback(
-    async (provisionLabel: string) => {
-      setProv({ phase: "loading" });
-      try {
-        const token = await getAccessToken();
-        const res = await fetch("/api/provision/start", {
-          method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-          body: JSON.stringify({ label: provisionLabel }),
-        });
-        const data = (await res.json()) as { ok?: boolean; error?: string; parent?: string; readyAt?: string };
-        if (res.ok && data.ok && data.parent) {
-          setProv({
-            phase: "registering",
-            parent: data.parent,
-            readyAt: data.readyAt ? new Date(data.readyAt).getTime() : Date.now() + 65_000,
-          });
-          setNow(Date.now());
-        } else {
-          setProv({ phase: "error", message: data.error ?? "Couldn't start provisioning." });
-        }
-      } catch (e) {
-        setProv({ phase: "error", message: e instanceof Error ? e.message : "Couldn't start provisioning." });
-      }
-    },
-    [getAccessToken],
-  );
-
   const issueError =
     status === "error" ? (
       <p className={styles.notice}>
@@ -261,32 +161,35 @@ export function Manager({
       <div className={styles.headerRow}>
         <h2 className={styles.heading}>{mode === "admin" ? "Admin" : "Manager"}</h2>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              border: "1px solid var(--line, #2a2f3d)",
-              borderRadius: 8,
-              overflow: "hidden",
-            }}
-          >
-            {(["member", "admin"] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                style={{
-                  appearance: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  font: "600 12px/1 inherit",
-                  padding: "7px 12px",
-                  background: mode === m ? "var(--accent)" : "transparent",
-                  color: mode === m ? "#0f1117" : "var(--muted, #9aa3b5)",
-                }}
-              >
-                {m === "member" ? "Member" : "Admin"}
-              </button>
-            ))}
-          </div>
+          {/* Admins can preview the member view; members don't see an admin toggle. */}
+          {mode === "admin" && (
+            <div
+              style={{
+                display: "inline-flex",
+                border: "1px solid var(--line, #2a2f3d)",
+                borderRadius: 8,
+                overflow: "hidden",
+              }}
+            >
+              {(["member", "admin"] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setMode(m)}
+                  style={{
+                    appearance: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    font: "600 12px/1 inherit",
+                    padding: "7px 12px",
+                    background: mode === m ? "var(--accent)" : "transparent",
+                    color: mode === m ? "#0f1117" : "var(--muted, #9aa3b5)",
+                  }}
+                >
+                  {m === "member" ? "Member" : "Admin"}
+                </button>
+              ))}
+            </div>
+          )}
           <button className={styles.ghostButton} onClick={logout}>
             Sign out
           </button>
@@ -317,14 +220,15 @@ export function Manager({
         </dl>
       </section>
 
-      {orgState.loading ? (
+      {mode === "admin" ? (
+        <AdminConsole />
+      ) : orgState.loading ? (
         <section className={styles.card}>
           <p className={styles.cardText} style={{ margin: 0 }}>
             Checking your organization…
           </p>
         </section>
       ) : myName ? (
-        // Anyone who has claimed a name: show it + the profile editor.
         <section className={styles.card}>
           <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
             {result ? "All set" : "Your name"}
@@ -344,9 +248,7 @@ export function Manager({
               Think of it as a username for web3: instead of a long wallet address like{" "}
               <span className={styles.mono}>{address ? shortAddress(address) : "0x…"}</span>, people
               can find and pay you at <strong>{myName}</strong>. It already points to your wallet and
-              works in any app that supports ENS (for example a wallet&apos;s &ldquo;send to&rdquo;
-              box, or your profile on an ENS-aware site). Add public profile details below — all
-              optional.
+              works in any app that supports ENS. Add public profile details below — all optional.
             </p>
           ) : (
             <p className={styles.cardText}>
@@ -428,7 +330,6 @@ export function Manager({
           )}
         </section>
       ) : org ? (
-        // Domain-matched, no name yet: claim under the org.
         <section className={styles.card}>
           <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
             Eligible
@@ -463,7 +364,6 @@ export function Manager({
           {issueError}
         </section>
       ) : orgState.isPublicDomain ? (
-        // Public email: no automatic org match — let them name an open organization.
         <section className={styles.card}>
           <div className={styles.cardLabel}>Join an organization</div>
           <p className={styles.cardText}>
@@ -508,103 +408,16 @@ export function Manager({
           {issueError}
         </section>
       ) : (
-        // Unprovisioned org domain: provision a platform-owned parent.
         <section className={styles.card}>
-          <div className={styles.cardLabel}>Set up your organization</div>
-
-          {mode === "member" ? (
-            <p className={styles.cardText} style={{ margin: 0 }}>
-              <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name set up yet.
-              Ask your organization&apos;s admin to set it up — or, if that&apos;s you,{" "}
-              <button
-                onClick={() => setMode("admin")}
-                style={{
-                  appearance: "none",
-                  border: "none",
-                  background: "none",
-                  padding: 0,
-                  color: "var(--accent)",
-                  cursor: "pointer",
-                  font: "inherit",
-                }}
-              >
-                set it up as an admin
-              </button>
-              .
-            </p>
-          ) : (
-            <>
-              {prov.phase === "loading" && (
-                <p className={styles.cardText} style={{ margin: 0 }}>
-                  Checking available names…
-                </p>
-              )}
-
-          {prov.phase === "suggest" && (
-            <>
-              <p className={styles.cardText}>
-                <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name yet. Pick
-                one to register for your organization:
-                <InfoTip>
-                  We turn your email domain into a name (acme.com becomes acme.eth). If it&apos;s
-                  taken, choose an available alternative. Registering takes about a minute.
-                </InfoTip>
-              </p>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {prov.options.map((o) => (
-                  <li
-                    key={o.label}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      padding: "9px 0",
-                      borderTop: "1px solid var(--line, #2a2f3d)",
-                    }}
-                  >
-                    <span className={styles.mono}>{o.fqdn}</span>
-                    {o.available ? (
-                      <button className={styles.primaryButton} onClick={() => handleProvision(o.label)}>
-                        Register
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: 13, color: "var(--muted, #9aa3b5)" }}>taken</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          {prov.phase === "registering" && (
-            <p className={styles.cardText} style={{ margin: 0 }}>
-              Registering <strong>{prov.parent}</strong> for your organization…{" "}
-              {now < prov.readyAt
-                ? `~${Math.max(0, Math.ceil((prov.readyAt - now) / 1000))}s`
-                : "finalizing…"}
-              <br />
-              <span style={{ color: "var(--muted, #9aa3b5)", fontSize: 13 }}>
-                This is a one-time on-chain registration (commit then reveal). Keep this tab open.
-              </span>
-            </p>
-          )}
-
-          {prov.phase === "done" && (
-            <p className={styles.cardText} style={{ margin: 0 }}>
-              Registered <strong>{prov.parent}</strong>. Loading…
-            </p>
-          )}
-
-              {prov.phase === "error" && (
-                <p className={styles.notice}>
-                  Provisioning failed:
-                  <br />
-                  <span className={styles.mono}>{prov.message}</span>
-                </p>
-              )}
-            </>
-          )}
+          <div className={styles.cardLabel}>Not set up yet</div>
+          <p className={styles.cardText} style={{ margin: 0 }}>
+            <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name set up yet.
+            Ask your organization&apos;s admin to set it up — or, if that&apos;s you, switch to{" "}
+            <button onClick={() => setMode("admin")} style={linkButtonStyle}>
+              Admin
+            </button>
+            .
+          </p>
         </section>
       )}
     </div>

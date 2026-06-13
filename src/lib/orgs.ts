@@ -110,6 +110,54 @@ export async function getOpenOrgByParent(parent: string): Promise<EnrolledOrg | 
   };
 }
 
+/** The org a user administers (bootstrap: matched by admin_email). Server-only. */
+export async function getAdminOrg(email: string): Promise<EnrolledOrg | null> {
+  const e = email.trim().toLowerCase();
+  const { data, error } = await getSupabase()
+    .from("orgs")
+    .select("domain, parent, subregistry, issuance, owner_model, parent_owner, status")
+    .eq("admin_email", e)
+    .eq("status", "active")
+    .limit(1);
+
+  if (error) throw new Error(`admin org lookup failed: ${error.message}`);
+  const row = data?.[0];
+  if (!row) return null;
+  return {
+    domain: row.domain,
+    parent: row.parent,
+    subregistry: row.subregistry,
+    issuance: row.issuance,
+    ownerModel: row.owner_model,
+    parentOwner: row.parent_owner,
+    status: row.status,
+  };
+}
+
+export interface Member {
+  fqdn: string;
+  label: string;
+  owner: string;
+  createdAt: string;
+}
+
+/** List the issued subnames under a parent (the org's members). Server-only. */
+export async function getMembers(parent: string): Promise<Member[]> {
+  const { data, error } = await getSupabase()
+    .from("subnames")
+    .select("fqdn, label, owner, created_at")
+    .eq("parent", parent)
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`members lookup failed: ${error.message}`);
+  return (data ?? []).map((r) => ({
+    fqdn: r.fqdn,
+    label: r.label,
+    owner: r.owner,
+    createdAt: r.created_at,
+  }));
+}
+
 export interface ProvisioningRow {
   domain: string;
   parent: string;

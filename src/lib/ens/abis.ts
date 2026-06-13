@@ -267,6 +267,13 @@ export const permissionedRegistryAbi = [
     outputs: [],
   },
   {
+    name: "unregister",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "anyId", type: "uint256" }],
+    outputs: [],
+  },
+  {
     name: "setResolver",
     type: "function",
     stateMutability: "nonpayable",

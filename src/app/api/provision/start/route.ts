@@ -51,6 +51,7 @@ export async function POST(req: Request) {
         issuance: "onchain",
         owner_model: "platform",
         parent_owner: account.address,
+        admin_email: member.email.toLowerCase(),
         status: "pending",
         commit_secret: committed.secret,
         ready_at: readyAt,
