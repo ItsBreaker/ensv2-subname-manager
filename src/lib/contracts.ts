@@ -29,3 +29,23 @@ export const CONTRACTS = {
 } as const satisfies Record<string, `0x${string}`>;
 
 export type ContractName = keyof typeof CONTRACTS;
+
+/**
+ * ENSv1 contracts on Sepolia — used only by the onchain subname *fallback*
+ * (NameWrapper / registry `setSubnodeRecord`, per architecture doc §6).
+ *
+ * Confirmed identical to gskril/ens-cli `lib/contracts.ts` (the booth reference).
+ * NameWrapper + UniversalResolver are shared across v1/v2 and already live in CONTRACTS.
+ */
+export const V1_CONTRACTS = {
+  /** ENS registry — read parent owner; setSubnodeRecord on unwrapped parents. */
+  ENSRegistry: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e",
+  /** Public resolver — default resolver for onchain subnames. */
+  PublicResolver: "0xE99638b40E4Fff0129D56f03b55b6bbC4BBE49b5",
+  /** Base registrar (.eth) — name expiry lookups. */
+  BaseRegistrar: "0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85",
+  /** v1 ETHRegistrarController — v1 commit/reveal (not used by the v2 flow). */
+  ETHRegistrarController: "0xfb3cE5D01e0f33f41DbB39035dB9745962F1f968",
+} as const satisfies Record<string, `0x${string}`>;
+
+export type V1ContractName = keyof typeof V1_CONTRACTS;
