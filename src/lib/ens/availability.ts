@@ -7,7 +7,8 @@
  */
 
 import type { PublicClient } from "viem";
-import { isAvailable } from "./registration";
+import { CONTRACTS } from "../contracts";
+import { ethRegistrarAbi } from "./abis";
 
 export interface NameOption {
   label: string;
@@ -29,23 +30,29 @@ export function candidateLabels(base: string): string[] {
   return [...new Set(candidates)].filter((l) => l.length >= 3 && l.length <= 63);
 }
 
-/** Check availability of the base name + alternatives. Unavailable on any read error. */
+/** Check availability of the base name + alternatives in a single multicall. */
 export async function suggestNames(
   publicClient: PublicClient,
   domain: string,
 ): Promise<{ base: string; options: NameOption[] }> {
   const base = labelFromDomain(domain);
   const labels = candidateLabels(base);
-  const options = await Promise.all(
-    labels.map(async (label) => {
-      let available = false;
-      try {
-        available = await isAvailable(publicClient, label);
-      } catch {
-        available = false;
-      }
-      return { label, fqdn: `${label}.eth`, available };
-    }),
-  );
+  if (labels.length === 0) return { base, options: [] };
+
+  // One batched RPC (via Multicall3) instead of N round-trips.
+  const results = await publicClient.multicall({
+    contracts: labels.map((label) => ({
+      address: CONTRACTS.ETHRegistrar,
+      abi: ethRegistrarAbi,
+      functionName: "isAvailable" as const,
+      args: [label] as const,
+    })),
+  });
+
+  const options = labels.map((label, i) => ({
+    label,
+    fqdn: `${label}.eth`,
+    available: results[i]?.status === "success" ? Boolean(results[i]!.result) : false,
+  }));
   return { base, options };
 }

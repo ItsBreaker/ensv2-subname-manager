@@ -21,6 +21,8 @@ create table if not exists public.orgs (
                   check (status in ('active', 'pending', 'taken')),
   open_enrollment boolean not null default false,         -- true: anyone may claim under this parent
   admin_email   text,                                     -- the org's admin (bootstrap; set on provision)
+  verify_token  text,                                     -- DNS-TXT domain-verification challenge
+  domain_verified_at timestamptz,                         -- when the admin proved domain control
   commit_secret text,                                     -- commit/reveal secret while pending
   ready_at      timestamptz,                              -- when the commitment matures (pending)
   created_at    timestamptz not null default now(),
@@ -32,6 +34,8 @@ create table if not exists public.orgs (
 --       alter table public.orgs add column if not exists ready_at timestamptz;
 --       alter table public.orgs add column if not exists open_enrollment boolean not null default false;
 --       alter table public.orgs add column if not exists admin_email text;
+--       alter table public.orgs add column if not exists verify_token text;
+--       alter table public.orgs add column if not exists domain_verified_at timestamptz;
 --     (commit_secret holds the commit/reveal secret while status='pending'; open_enrollment lets
 --      anyone claim under the parent regardless of email domain; admin_email is the org's admin.)
 --     To open the demo org and make yourself its admin (use YOUR login email):
@@ -66,13 +70,24 @@ create table if not exists public.reservations (
 );
 create index if not exists reservations_email_idx on public.reservations (email);
 
+-- 2c) Domain verifications: an admin proves control of their email DOMAIN via a DNS-TXT challenge.
+--     Verification is required before they can register (provision) their org's parent name.
+create table if not exists public.domain_verifications (
+  domain      text primary key,
+  token       text,
+  verified_at timestamptz,
+  created_at  timestamptz not null default now()
+);
+
 -- 3) Lock down: RLS on, privileges granted only to the server (service_role).
 alter table public.orgs enable row level security;
 alter table public.subnames enable row level security;
 alter table public.reservations enable row level security;
+alter table public.domain_verifications enable row level security;
 grant all on table public.orgs to service_role;
 grant all on table public.subnames to service_role;
 grant all on table public.reservations to service_role;
+grant all on table public.domain_verifications to service_role;
 -- (No policies for anon/authenticated => no browser access. service_role bypasses RLS.)
 
 -- 4) Seed current enrollments (edit freely).

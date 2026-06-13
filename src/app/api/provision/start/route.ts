@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { HttpError, toErrorResponse, verifyMember } from "@/lib/auth";
 import { getOrgByDomain, isPublicEmailDomain } from "@/lib/orgs";
+import { isDomainVerified } from "@/lib/verifications";
 import { getServerSigner } from "@/lib/ens/serverSigner";
 import { getSupabase } from "@/lib/supabase";
 import { commit, isAvailable, MIN_COMMITMENT_AGE_SECONDS, normalizeRegistration } from "@/lib/ens/registration";
@@ -22,6 +23,10 @@ export async function POST(req: Request) {
     const member = await verifyMember(req);
     if (isPublicEmailDomain(member.domain)) {
       throw new HttpError(400, "Personal email domains use self-serve, not org provisioning.");
+    }
+
+    if (!(await isDomainVerified(member.domain))) {
+      throw new HttpError(403, "Verify control of your domain before registering your organization's name.");
     }
 
     const active = await getOrgByDomain(member.domain);
