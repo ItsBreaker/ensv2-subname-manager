@@ -9,6 +9,8 @@ import { HttpError, toErrorResponse, verifyMember } from "@/lib/auth";
 
 // Node runtime: uses the Privy server SDK + viem private-key signing (not edge-compatible).
 export const runtime = "nodejs";
+// Claims do multiple on-chain txs + confirmations (~20-40s) — raise the serverless timeout.
+export const maxDuration = 60;
 
 /**
  * POST /api/issue — issue an onchain ENSv2 subname to an eligible member, set so it resolves.

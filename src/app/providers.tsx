@@ -23,7 +23,7 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!appId) {
     if (typeof window !== "undefined") {
       console.warn(
-        "[providers] NEXT_PUBLIC_PRIVY_APP_ID is not set — Privy/wagmi are disabled. " +
+        "[providers] NEXT_PUBLIC_PRIVY_APP_ID is not set. Privy/wagmi are disabled. " +
           "Copy .env.local.example to .env.local and fill it in.",
       );
     }
