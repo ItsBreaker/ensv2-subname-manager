@@ -26,6 +26,7 @@ export interface EnrolledOrg {
  */
 export const ENROLLED_ORGS: EnrolledOrg[] = [
   { domain: "democlub.com", parent: "democlub.eth", issuance: "offchain" },
+  { domain: "gmail.com", parent: "democlub.eth", issuance: "onchain" },
 ];
 
 /** Look up an enrolled org by verified email domain (case-insensitive). */
