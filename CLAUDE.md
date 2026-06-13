@@ -69,6 +69,14 @@ browser never touches Supabase. The UI gets eligibility from `GET /api/org` and 
 routed to self-serve, not org-enrolled. Server-only env: `PRIVY_APP_SECRET`, `ISSUER_PRIVATE_KEY`,
 `SUPABASE_URL`, `SUPABASE_SECRET_KEY`.
 
+**Auto-provision (Phase B):** an unenrolled org domain can register a platform-owned parent.
+`GET /api/provision` suggests registerable names (base + alternatives if taken). Because a parent
+registration is commit → 60s → reveal (too long for one serverless call), it's a two-call flow:
+`POST /api/provision/start` (commit, stores a pending `orgs` row with `commit_secret` + `ready_at`)
+then, after the client waits, `POST /api/provision/finish` (mint test token if needed → approve →
+register → mark active; idempotent if the name is already ours). The platform key (`ISSUER_PRIVATE_KEY`)
+pays gas + holds the name. Requires the `orgs` columns `commit_secret` + `ready_at` (see supabase/schema.sql).
+
 ## Build priority order
 
 When time is short, never sacrifice a working core for a second half-working integration:

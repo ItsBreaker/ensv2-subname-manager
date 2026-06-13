@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import type { Session } from "@/hooks/useSession";
+import type { Mode } from "./GoldenPath";
 import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
 
-/** Turn an email local-part into a plausible default subname label. */
 function defaultLabel(email: string | null): string {
   const local = email?.split("@")[0] ?? "";
   return local.toLowerCase().replace(/[^a-z0-9-]/g, "");
@@ -18,12 +18,19 @@ function shortAddress(address: string): string {
 
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
+type NameOption = { label: string; fqdn: string; available: boolean };
 
 type OrgState =
   | { loading: true }
   | { loading: false; org: { parent: string } | null; isPublicDomain: boolean; subname: string | null };
 
-/** Profile text-record fields the member can edit (label → resolver text key). */
+type ProvPhase =
+  | { phase: "loading" }
+  | { phase: "suggest"; options: NameOption[] }
+  | { phase: "registering"; parent: string; readyAt: number }
+  | { phase: "done"; parent: string }
+  | { phase: "error"; message: string };
+
 const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
   { key: "name", label: "Display name", placeholder: "Jayden" },
   { key: "description", label: "Bio", placeholder: "Builder at democlub" },
@@ -32,87 +39,164 @@ const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
   { key: "com.twitter", label: "Twitter", placeholder: "yourhandle" },
 ];
 
-/**
- * The manager shell — where a logged-in member lands (architecture doc §3). Eligibility and any
- * already-claimed name come from /api/org (DB is server-only). Claiming calls /api/issue (mints +
- * sets the addr record so the name resolves); the profile editor calls /api/records (text records).
- */
-export function Manager({ session }: { session: Session }) {
+export function Manager({
+  session,
+  mode,
+  setMode,
+}: {
+  session: Session;
+  mode: Mode;
+  setMode: (m: Mode) => void;
+}) {
   const { email, verifiedEmailDomain, address, logout } = session;
   const { getAccessToken } = usePrivy();
 
   const [orgState, setOrgState] = useState<OrgState>({ loading: true });
   const [label, setLabel] = useState(() => defaultLabel(email));
+  const [openParent, setOpenParent] = useState("");
   const [status, setStatus] = useState<IssueStatus>("idle");
   const [result, setResult] = useState<IssueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showClaim, setShowClaim] = useState(false);
 
+  const [prov, setProv] = useState<ProvPhase>({ phase: "loading" });
+  const [now, setNow] = useState<number>(() => Date.now());
+  const finishingRef = useRef(false);
+
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const loadOrg = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/org", { headers: { authorization: `Bearer ${token}` } });
+      const data = (await res.json()) as {
+        ok?: boolean;
+        org?: { parent: string } | null;
+        isPublicDomain?: boolean;
+        subname?: string | null;
+      };
+      if (res.ok && data.ok) {
+        setOrgState({
+          loading: false,
+          org: data.org ?? null,
+          isPublicDomain: !!data.isPublicDomain,
+          subname: data.subname ?? null,
+        });
+      } else {
+        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+      }
+    } catch {
+      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+    }
+  }, [getAccessToken]);
+
   useEffect(() => {
+    void loadOrg();
+  }, [loadOrg]);
+
+  // For an unprovisioned org domain, load suggestions (or resume an in-flight registration).
+  useEffect(() => {
+    if (orgState.loading || orgState.org || orgState.isPublicDomain) return;
     let cancelled = false;
+    setProv({ phase: "loading" });
     (async () => {
       try {
         const token = await getAccessToken();
-        const res = await fetch("/api/org", { headers: { authorization: `Bearer ${token}` } });
+        const res = await fetch("/api/provision", { headers: { authorization: `Bearer ${token}` } });
         const data = (await res.json()) as {
-          ok?: boolean;
-          org?: { parent: string } | null;
-          isPublicDomain?: boolean;
-          subname?: string | null;
+          kind?: string;
+          parent?: string;
+          readyAt?: string | null;
+          options?: NameOption[];
         };
         if (cancelled) return;
-        if (res.ok && data.ok) {
-          setOrgState({
-            loading: false,
-            org: data.org ?? null,
-            isPublicDomain: !!data.isPublicDomain,
-            subname: data.subname ?? null,
+        if (data.kind === "pending" && data.parent) {
+          setProv({
+            phase: "registering",
+            parent: data.parent,
+            readyAt: data.readyAt ? new Date(data.readyAt).getTime() : Date.now(),
           });
+        } else if (data.kind === "unprovisioned") {
+          setProv({ phase: "suggest", options: data.options ?? [] });
         } else {
-          setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+          setProv({ phase: "suggest", options: [] });
         }
       } catch {
-        if (!cancelled) setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null });
+        if (!cancelled) setProv({ phase: "suggest", options: [] });
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [getAccessToken]);
+  }, [orgState, getAccessToken]);
+
+  useEffect(() => {
+    if (prov.phase !== "registering") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [prov.phase]);
+
+  useEffect(() => {
+    if (prov.phase !== "registering") {
+      finishingRef.current = false;
+      return;
+    }
+    if (now < prov.readyAt || finishingRef.current) return;
+    finishingRef.current = true;
+    const parent = prov.parent;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/provision/finish", {
+          method: "POST",
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string };
+        if (res.ok && data.ok) {
+          setProv({ phase: "done", parent });
+          await loadOrg();
+        } else {
+          setProv({ phase: "error", message: data.error ?? "Registration failed." });
+        }
+      } catch (e) {
+        setProv({ phase: "error", message: e instanceof Error ? e.message : "Registration failed." });
+      }
+    })();
+  }, [prov, now, getAccessToken, loadOrg]);
 
   const org = orgState.loading ? null : orgState.org;
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
-  const fqdn = org && label ? `${label}.${org.parent}` : null;
-  const canIssue = Boolean(org && label) && status !== "issuing";
 
-  const handleIssue = useCallback(async () => {
-    if (!org || !label) return;
-    setStatus("issuing");
-    setError(null);
-    setResult(null);
-    try {
-      const token = await getAccessToken();
-      const res = await fetch("/api/issue", {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ label }),
-      });
-      const data = (await res.json()) as { ok?: boolean; error?: string } & Partial<IssueResult>;
-      if (!res.ok || !data.ok || !data.fqdn || !data.txHash) {
-        throw new Error(data.error ?? `Request failed (${res.status})`);
+  // Issue under the domain-matched org (no parentOverride) or a typed open org (parentOverride).
+  const handleIssue = useCallback(
+    async (parentOverride?: string) => {
+      if (!label) return;
+      setStatus("issuing");
+      setError(null);
+      setResult(null);
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/issue", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ label, ...(parentOverride ? { parent: parentOverride } : {}) }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string } & Partial<IssueResult>;
+        if (!res.ok || !data.ok || !data.fqdn || !data.txHash) {
+          throw new Error(data.error ?? `Request failed (${res.status})`);
+        }
+        setResult({ fqdn: data.fqdn, txHash: data.txHash });
+        setStatus("done");
+        setShowClaim(false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setStatus("error");
       }
-      setResult({ fqdn: data.fqdn, txHash: data.txHash });
-      setStatus("done");
-      setShowClaim(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus("error");
-    }
-  }, [org, label, getAccessToken]);
+    },
+    [label, getAccessToken],
+  );
 
   const handleSaveProfile = useCallback(async () => {
     const texts = Object.fromEntries(Object.entries(profile).filter(([, v]) => v.trim() !== ""));
@@ -135,48 +219,80 @@ export function Manager({ session }: { session: Session }) {
     }
   }, [profile, getAccessToken]);
 
-  // The claim form, reused for first-time claims and "claim another name".
-  const claimForm = org ? (
-    <>
-      <div className={styles.issueRow}>
-        <div className={styles.inputGroup}>
-          <input
-            className={styles.input}
-            value={label}
-            onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-            placeholder="yourname"
-            spellCheck={false}
-          />
-          <span className={styles.suffix}>.{org.parent}</span>
-        </div>
-        <button className={styles.primaryButton} onClick={handleIssue} disabled={!canIssue}>
-          {status === "issuing" ? "Claiming…" : "Claim my name"}
-        </button>
-        <InfoTip>
-          Creates {fqdn ?? "alice.yourorg.eth"} as a name you fully own on the blockchain, set up to
-          resolve to your wallet. Your organization covers the small network fee.
-        </InfoTip>
-      </div>
-      {status === "error" && (
-        <p className={styles.notice}>
-          Couldn&apos;t claim your name:
-          <br />
-          <span className={styles.mono}>{error}</span>
-        </p>
-      )}
-    </>
-  ) : null;
+  const handleProvision = useCallback(
+    async (provisionLabel: string) => {
+      setProv({ phase: "loading" });
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/provision/start", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ label: provisionLabel }),
+        });
+        const data = (await res.json()) as { ok?: boolean; error?: string; parent?: string; readyAt?: string };
+        if (res.ok && data.ok && data.parent) {
+          setProv({
+            phase: "registering",
+            parent: data.parent,
+            readyAt: data.readyAt ? new Date(data.readyAt).getTime() : Date.now() + 65_000,
+          });
+          setNow(Date.now());
+        } else {
+          setProv({ phase: "error", message: data.error ?? "Couldn't start provisioning." });
+        }
+      } catch (e) {
+        setProv({ phase: "error", message: e instanceof Error ? e.message : "Couldn't start provisioning." });
+      }
+    },
+    [getAccessToken],
+  );
+
+  const issueError =
+    status === "error" ? (
+      <p className={styles.notice}>
+        Couldn&apos;t claim your name:
+        <br />
+        <span className={styles.mono}>{error}</span>
+      </p>
+    ) : null;
 
   return (
     <div className={styles.wrap}>
       <div className={styles.headerRow}>
-        <h2 className={styles.heading}>Manager</h2>
-        <button className={styles.ghostButton} onClick={logout}>
-          Sign out
-        </button>
+        <h2 className={styles.heading}>{mode === "admin" ? "Admin" : "Manager"}</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              border: "1px solid var(--line, #2a2f3d)",
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
+          >
+            {(["member", "admin"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{
+                  appearance: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  font: "600 12px/1 inherit",
+                  padding: "7px 12px",
+                  background: mode === m ? "var(--accent)" : "transparent",
+                  color: mode === m ? "#0f1117" : "var(--muted, #9aa3b5)",
+                }}
+              >
+                {m === "member" ? "Member" : "Admin"}
+              </button>
+            ))}
+          </div>
+          <button className={styles.ghostButton} onClick={logout}>
+            Sign out
+          </button>
+        </div>
       </div>
 
-      {/* Unified session readout */}
       <section className={styles.card}>
         <div className={styles.cardLabel}>Your session</div>
         <dl className={styles.defs}>
@@ -201,120 +317,294 @@ export function Manager({ session }: { session: Session }) {
         </dl>
       </section>
 
-      {/* Eligibility / claim / profile */}
       {orgState.loading ? (
         <section className={styles.card}>
           <p className={styles.cardText} style={{ margin: 0 }}>
             Checking your organization…
           </p>
         </section>
-      ) : org ? (
+      ) : myName ? (
+        // Anyone who has claimed a name: show it + the profile editor.
         <section className={styles.card}>
-          {myName ? (
-            <>
-              <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
-                Your name
-              </div>
-              <p className={styles.cardText}>
-                You own <strong>{myName}</strong>
-                {result && (
-                  <>
-                    {" ("}
-                    <a
-                      href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      view transaction
-                    </a>
-                    {")"}
-                  </>
-                )}
-                . It resolves to your wallet. Add profile records below.
-                <InfoTip>
-                  These are public details attached to your name. Anyone looking up {myName} can see
-                  them. All optional.
-                </InfoTip>
-              </p>
+          <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
+            {result ? "All set" : "Your name"}
+          </div>
+          {result ? (
+            <p className={styles.cardText}>
+              Thank you for setting up your name! <strong>{myName}</strong> is yours (
+              <a
+                href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                view transaction
+              </a>
+              ).
+              <br />
+              Think of it as a username for web3: instead of a long wallet address like{" "}
+              <span className={styles.mono}>{address ? shortAddress(address) : "0x…"}</span>, people
+              can find and pay you at <strong>{myName}</strong>. It already points to your wallet and
+              works in any app that supports ENS (for example a wallet&apos;s &ldquo;send to&rdquo;
+              box, or your profile on an ENS-aware site). Add public profile details below — all
+              optional.
+            </p>
+          ) : (
+            <p className={styles.cardText}>
+              You own <strong>{myName}</strong>. It resolves to your wallet. Add profile records below.
+              <InfoTip>
+                These are public details attached to your name. Anyone looking up {myName} can see
+                them. All optional.
+              </InfoTip>
+            </p>
+          )}
 
-              <div className={styles.profileGrid}>
-                {PROFILE_FIELDS.map((f) => (
-                  <label key={f.key} className={styles.field}>
-                    <span className={styles.fieldLabel}>{f.label}</span>
+          <div className={styles.profileGrid}>
+            {PROFILE_FIELDS.map((f) => (
+              <label key={f.key} className={styles.field}>
+                <span className={styles.fieldLabel}>{f.label}</span>
+                <input
+                  className={styles.input}
+                  style={{ width: "100%" }}
+                  value={profile[f.key] ?? ""}
+                  placeholder={f.placeholder}
+                  onChange={(e) => setProfile((p) => ({ ...p, [f.key]: e.target.value }))}
+                />
+              </label>
+            ))}
+          </div>
+          <div className={styles.issueRow} style={{ marginTop: 12 }}>
+            <button
+              className={styles.primaryButton}
+              onClick={handleSaveProfile}
+              disabled={saveStatus === "saving"}
+            >
+              {saveStatus === "saving" ? "Saving…" : "Save profile"}
+            </button>
+            {saveStatus === "done" && <span className={styles.success}>Saved</span>}
+          </div>
+          {saveStatus === "error" && (
+            <p className={styles.notice}>
+              Couldn&apos;t save:
+              <br />
+              <span className={styles.mono}>{saveError}</span>
+            </p>
+          )}
+
+          {org && (
+            <div style={{ borderTop: "1px solid var(--line, #2a2f3d)", marginTop: 18, paddingTop: 14 }}>
+              {showClaim ? (
+                <div className={styles.issueRow}>
+                  <div className={styles.inputGroup}>
                     <input
                       className={styles.input}
-                      style={{ width: "100%" }}
-                      value={profile[f.key] ?? ""}
-                      placeholder={f.placeholder}
-                      onChange={(e) => setProfile((p) => ({ ...p, [f.key]: e.target.value }))}
+                      value={label}
+                      onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                      placeholder="yourname"
+                      spellCheck={false}
                     />
-                  </label>
-                ))}
-              </div>
-              <div className={styles.issueRow} style={{ marginTop: 12 }}>
+                    <span className={styles.suffix}>.{org.parent}</span>
+                  </div>
+                  <button
+                    className={styles.primaryButton}
+                    onClick={() => handleIssue()}
+                    disabled={!label || status === "issuing"}
+                  >
+                    {status === "issuing" ? "Claiming…" : "Claim"}
+                  </button>
+                </div>
+              ) : (
                 <button
-                  className={styles.primaryButton}
-                  onClick={handleSaveProfile}
-                  disabled={saveStatus === "saving"}
+                  className={styles.ghostButton}
+                  onClick={() => {
+                    setLabel("");
+                    setStatus("idle");
+                    setShowClaim(true);
+                  }}
                 >
-                  {saveStatus === "saving" ? "Saving…" : "Save profile"}
+                  + Claim another name
                 </button>
-                {saveStatus === "done" && <span className={styles.success}>Saved</span>}
-              </div>
-              {saveStatus === "error" && (
-                <p className={styles.notice}>
-                  Couldn&apos;t save:
-                  <br />
-                  <span className={styles.mono}>{saveError}</span>
+              )}
+            </div>
+          )}
+        </section>
+      ) : org ? (
+        // Domain-matched, no name yet: claim under the org.
+        <section className={styles.card}>
+          <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
+            Eligible
+          </div>
+          <p className={styles.cardText}>
+            Your email domain <code>{verifiedEmailDomain}</code> is linked to{" "}
+            <strong>{org.parent}</strong>. You can claim your own name under it.
+          </p>
+          <div className={styles.issueRow}>
+            <div className={styles.inputGroup}>
+              <input
+                className={styles.input}
+                value={label}
+                onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="yourname"
+                spellCheck={false}
+              />
+              <span className={styles.suffix}>.{org.parent}</span>
+            </div>
+            <button
+              className={styles.primaryButton}
+              onClick={() => handleIssue()}
+              disabled={!label || status === "issuing"}
+            >
+              {status === "issuing" ? "Claiming…" : "Claim my name"}
+            </button>
+            <InfoTip>
+              Creates {label ? `${label}.${org.parent}` : "alice.yourorg.eth"} as a name you fully own
+              on the blockchain, set up to resolve to your wallet. Your organization covers the fee.
+            </InfoTip>
+          </div>
+          {issueError}
+        </section>
+      ) : orgState.isPublicDomain ? (
+        // Public email: no automatic org match — let them name an open organization.
+        <section className={styles.card}>
+          <div className={styles.cardLabel}>Join an organization</div>
+          <p className={styles.cardText}>
+            <code>{verifiedEmailDomain}</code> is a personal email, so we can&apos;t match you to an
+            organization automatically. If your organization has opened sign-ups, enter its name to
+            claim a name under it.
+            <InfoTip>
+              Ask your organization for their name (for example democlub.eth). It only works if
+              they&apos;ve turned on open sign-ups.
+            </InfoTip>
+          </p>
+          <label className={styles.field} style={{ marginBottom: 10 }}>
+            <span className={styles.fieldLabel}>Organization name</span>
+            <input
+              className={styles.input}
+              style={{ width: "100%" }}
+              value={openParent}
+              onChange={(e) => setOpenParent(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
+              placeholder="democlub.eth"
+              spellCheck={false}
+            />
+          </label>
+          <div className={styles.issueRow}>
+            <div className={styles.inputGroup}>
+              <input
+                className={styles.input}
+                value={label}
+                onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                placeholder="yourname"
+                spellCheck={false}
+              />
+              <span className={styles.suffix}>.{openParent || "yourorg.eth"}</span>
+            </div>
+            <button
+              className={styles.primaryButton}
+              onClick={() => handleIssue(openParent)}
+              disabled={!openParent || !label || status === "issuing"}
+            >
+              {status === "issuing" ? "Claiming…" : "Claim my name"}
+            </button>
+          </div>
+          {issueError}
+        </section>
+      ) : (
+        // Unprovisioned org domain: provision a platform-owned parent.
+        <section className={styles.card}>
+          <div className={styles.cardLabel}>Set up your organization</div>
+
+          {mode === "member" ? (
+            <p className={styles.cardText} style={{ margin: 0 }}>
+              <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name set up yet.
+              Ask your organization&apos;s admin to set it up — or, if that&apos;s you,{" "}
+              <button
+                onClick={() => setMode("admin")}
+                style={{
+                  appearance: "none",
+                  border: "none",
+                  background: "none",
+                  padding: 0,
+                  color: "var(--accent)",
+                  cursor: "pointer",
+                  font: "inherit",
+                }}
+              >
+                set it up as an admin
+              </button>
+              .
+            </p>
+          ) : (
+            <>
+              {prov.phase === "loading" && (
+                <p className={styles.cardText} style={{ margin: 0 }}>
+                  Checking available names…
                 </p>
               )}
 
-              {/* Claim another name (also the way to test a fresh, resolvable claim) */}
-              <div style={{ borderTop: "1px solid var(--line, #2a2f3d)", marginTop: 18, paddingTop: 14 }}>
-                {showClaim ? (
-                  claimForm
-                ) : (
-                  <button
-                    className={styles.ghostButton}
-                    onClick={() => {
-                      setLabel("");
-                      setStatus("idle");
-                      setShowClaim(true);
+          {prov.phase === "suggest" && (
+            <>
+              <p className={styles.cardText}>
+                <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name yet. Pick
+                one to register for your organization:
+                <InfoTip>
+                  We turn your email domain into a name (acme.com becomes acme.eth). If it&apos;s
+                  taken, choose an available alternative. Registering takes about a minute.
+                </InfoTip>
+              </p>
+              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                {prov.options.map((o) => (
+                  <li
+                    key={o.label}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "9px 0",
+                      borderTop: "1px solid var(--line, #2a2f3d)",
                     }}
                   >
-                    + Claim another name
-                  </button>
-                )}
-              </div>
-            </>
-          ) : (
-            <>
-              <div className={styles.cardLabel} style={{ color: "var(--accent2, #5be2c0)" }}>
-                Eligible
-              </div>
-              <p className={styles.cardText}>
-                Your email domain <code>{verifiedEmailDomain}</code> is linked to{" "}
-                <strong>{org.parent}</strong>. You can claim your own name under it.
-              </p>
-              {claimForm}
+                    <span className={styles.mono}>{o.fqdn}</span>
+                    {o.available ? (
+                      <button className={styles.primaryButton} onClick={() => handleProvision(o.label)}>
+                        Register
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: 13, color: "var(--muted, #9aa3b5)" }}>taken</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </>
           )}
-        </section>
-      ) : orgState.isPublicDomain ? (
-        <section className={styles.card}>
-          <div className={styles.cardLabel}>Personal account</div>
-          <p className={styles.cardText} style={{ margin: 0 }}>
-            <code>{verifiedEmailDomain}</code> is a personal email provider, so there&apos;s no
-            organization to join. Registering your own name (self-serve) is coming soon.
-          </p>
-        </section>
-      ) : (
-        <section className={styles.card}>
-          <div className={styles.cardLabel}>Not set up yet</div>
-          <p className={styles.cardText} style={{ margin: 0 }}>
-            <code>{verifiedEmailDomain ?? "your domain"}</code> isn&apos;t enrolled with an organization yet.
-            Auto-provisioning a name for your organization is coming soon.
-          </p>
+
+          {prov.phase === "registering" && (
+            <p className={styles.cardText} style={{ margin: 0 }}>
+              Registering <strong>{prov.parent}</strong> for your organization…{" "}
+              {now < prov.readyAt
+                ? `~${Math.max(0, Math.ceil((prov.readyAt - now) / 1000))}s`
+                : "finalizing…"}
+              <br />
+              <span style={{ color: "var(--muted, #9aa3b5)", fontSize: 13 }}>
+                This is a one-time on-chain registration (commit then reveal). Keep this tab open.
+              </span>
+            </p>
+          )}
+
+          {prov.phase === "done" && (
+            <p className={styles.cardText} style={{ margin: 0 }}>
+              Registered <strong>{prov.parent}</strong>. Loading…
+            </p>
+          )}
+
+              {prov.phase === "error" && (
+                <p className={styles.notice}>
+                  Provisioning failed:
+                  <br />
+                  <span className={styles.mono}>{prov.message}</span>
+                </p>
+              )}
+            </>
+          )}
         </section>
       )}
     </div>
