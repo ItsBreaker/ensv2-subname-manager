@@ -52,7 +52,7 @@ function EntryButtons({ onPick }: { onPick: (m: Mode) => void }) {
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
       <span style={{ display: "inline-flex", alignItems: "center" }}>
         <button
-          style={{ ...buttonBase, border: "1px solid #2c3a5e", background: "var(--accent)", color: "#0f1117" }}
+          style={{ ...buttonBase, border: "1px solid var(--accent)", background: "var(--accent)", color: "#fff" }}
           onClick={() => onPick("member")}
         >
           I&apos;m a member

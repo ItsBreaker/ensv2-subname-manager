@@ -53,11 +53,26 @@ create table if not exists public.subnames (
 create index if not exists subnames_parent_idx on public.subnames (parent);
 create index if not exists subnames_owner_idx on public.subnames (owner);
 
+-- 2b) Reservations: CSV bulk-import invites (email -> reserved label under a parent). A member with
+--     a reservation may claim it on sign-in (eligibility), even without a domain match.
+create table if not exists public.reservations (
+  parent      text not null,
+  email       text not null,
+  label       text not null,
+  claimed     boolean not null default false,
+  created_at  timestamptz not null default now(),
+  primary key (parent, email),
+  unique (parent, label)
+);
+create index if not exists reservations_email_idx on public.reservations (email);
+
 -- 3) Lock down: RLS on, privileges granted only to the server (service_role).
 alter table public.orgs enable row level security;
 alter table public.subnames enable row level security;
+alter table public.reservations enable row level security;
 grant all on table public.orgs to service_role;
 grant all on table public.subnames to service_role;
+grant all on table public.reservations to service_role;
 -- (No policies for anon/authenticated => no browser access. service_role bypasses RLS.)
 
 -- 4) Seed current enrollments (edit freely).

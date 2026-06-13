@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyMember, toErrorResponse } from "@/lib/auth";
 import { getOrgByDomain, isPublicEmailDomain } from "@/lib/orgs";
+import { getReservation } from "@/lib/reservations";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -24,6 +25,8 @@ export async function GET(req: Request) {
       .limit(1)
       .maybeSingle();
 
+    const reservation = await getReservation(member.email);
+
     return NextResponse.json({
       ok: true,
       domain: member.domain,
@@ -31,6 +34,7 @@ export async function GET(req: Request) {
       isPublicDomain: isPublicEmailDomain(member.domain),
       org: org ? { parent: org.parent, issuance: org.issuance } : null,
       subname: sub?.fqdn ?? null,
+      reservation: reservation ? { parent: reservation.parent, label: reservation.label } : null,
     });
   } catch (e) {
     return toErrorResponse(e);
