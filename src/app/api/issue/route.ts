@@ -31,18 +31,18 @@ export async function POST(req: Request) {
     let label = (typeof body.label === "string" ? body.label : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
     const subgroupLabel = (typeof body.subgroup === "string" ? body.subgroup : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
 
+    // Load any CSV invite for this email up front — it can fix the label, the org, AND the subgroup.
+    const reservation = await getReservation(member.email);
+
     // Resolve the target org. Precedence: verified domain match → typed open org → CSV reservation.
     let org = await getOrgByDomain(member.domain);
     if (!org) {
       const typedParent = normalizeParentName(typeof body.parent === "string" ? body.parent : "");
       if (typedParent) org = await getOpenOrgByParent(typedParent);
     }
-    if (!org) {
-      const reservation = await getReservation(member.email);
-      if (reservation) {
-        org = await getActiveOrgByParent(reservation.parent);
-        label = reservation.label; // an invite fixes the reserved label
-      }
+    if (!org && reservation) {
+      org = await getActiveOrgByParent(reservation.parent);
+      label = reservation.label; // a reservation-only claim uses the reserved label
     }
     if (!org) {
       throw new HttpError(403, `Your email "${member.email}" isn't linked to an organization. Enter your organization's name, or ask your admin to invite you.`);
@@ -52,10 +52,13 @@ export async function POST(req: Request) {
     }
     if (!label) throw new HttpError(400, "Provide a valid label (letters, numbers, hyphens).");
 
-    // Optional: claim under one of the org's subgroups (alice.eng.org.eth) instead of the root.
-    const subgroup = subgroupLabel ? await getSubgroup(`${subgroupLabel}.${org.parent}`) : null;
-    if (subgroupLabel && !subgroup) {
-      throw new HttpError(400, `Subgroup "${subgroupLabel}.${org.parent}" doesn't exist.`);
+    // Subgroup: an explicit pick in the request wins; otherwise honor the subgroup the invite assigned
+    // (so a CSV import into "student" lands claims as alice.student.org.eth automatically).
+    const effectiveSubgroup =
+      subgroupLabel || (reservation && reservation.parent === org.parent ? (reservation.subgroup ?? "") : "");
+    const subgroup = effectiveSubgroup ? await getSubgroup(`${effectiveSubgroup}.${org.parent}`) : null;
+    if (effectiveSubgroup && !subgroup) {
+      throw new HttpError(400, `Subgroup "${effectiveSubgroup}.${org.parent}" doesn't exist.`);
     }
 
     const issueParent = subgroup ? subgroup.fqdn : org.parent; // eng.org.eth or org.eth
@@ -101,7 +104,7 @@ export async function POST(req: Request) {
       claimed_by: member.userId,
       domain: member.domain,
     });
-    if (!subgroup) await markReservationClaimed(org.parent, member.email); // no-op unless this was an invite
+    if (reservation) await markReservationClaimed(reservation.parent, member.email); // clear the invite
 
     return NextResponse.json({
       ok: true,
