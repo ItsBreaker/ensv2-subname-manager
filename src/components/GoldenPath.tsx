@@ -65,56 +65,67 @@ const EXAMPLES = [
 function Landing({ onPick }: { onPick: (m: Mode) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/ensv2_subname_manager_banner.png"
-        alt="ENS Subname Manager"
+      <section
         style={{
-          width: "100%",
-          height: "auto",
-          maxHeight: 260,
-          objectFit: "cover",
-          borderRadius: 18,
-          border: "1px solid var(--line)",
+          display: "flex",
+          gap: 28,
+          alignItems: "center",
+          flexWrap: "wrap",
         }}
-      />
-      <section>
-        <p
-          style={{
-            font: "600 12px/1 ui-monospace, monospace",
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: "var(--accent)",
-            margin: 0,
-          }}
-        >
-          Onboard to ENS
-        </p>
-        <h1 style={{ fontSize: 44, lineHeight: 1.1, margin: "14px 0 14px", maxWidth: "16ch" }}>
-          Your name, under your organization.
-        </h1>
-        <p style={{ color: "var(--muted)", fontSize: 18, maxWidth: "62ch", margin: 0 }}>
-          Sign in with your email and claim a real ENS name like{" "}
-          <strong style={{ color: "var(--ink)" }}>you.org.eth</strong>. No seed phrases, no crypto
-          knowledge. Every control explains itself in plain language.
-        </p>
+      >
+        <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+          <p
+            style={{
+              font: "600 12px/1 ui-monospace, monospace",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: "var(--accent)",
+              margin: 0,
+            }}
+          >
+            Onboard to ENS
+          </p>
+          <h1 style={{ fontSize: 40, lineHeight: 1.1, margin: "14px 0 14px", maxWidth: "16ch" }}>
+            Your name, under your organization.
+          </h1>
+          <p style={{ color: "var(--muted)", fontSize: 17, maxWidth: "52ch", margin: 0 }}>
+            Sign in with your email and claim a real ENS name like{" "}
+            <strong style={{ color: "var(--ink)" }}>you.org.eth</strong>. No seed phrases, no crypto
+            knowledge. Every control explains itself in plain language.
+          </p>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 28 }}>
-          <ButtonWithInfo
-            onClick={() => onPick("member")}
-            info="Get your own name under your organization. Just sign in with your email."
-            style={{ ...buttonBase, border: "1px solid var(--accent)", background: "var(--accent)", color: "#fff" }}
-          >
-            I&apos;m a member
-          </ButtonWithInfo>
-          <ButtonWithInfo
-            onClick={() => onPick("admin")}
-            info="Set up and manage your organization: register or connect its name, add and remove members, create groups."
-            style={{ ...buttonBase, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)" }}
-          >
-            I&apos;m an admin
-          </ButtonWithInfo>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
+            <ButtonWithInfo
+              onClick={() => onPick("member")}
+              info="Get your own name under your organization. Just sign in with your email."
+              style={{ ...buttonBase, border: "1px solid var(--accent)", background: "var(--accent)", color: "#fff" }}
+            >
+              I&apos;m a member
+            </ButtonWithInfo>
+            <ButtonWithInfo
+              onClick={() => onPick("admin")}
+              info="Set up and manage your organization: register or connect its name, add and remove members, create groups."
+              style={{ ...buttonBase, border: "1px solid var(--line)", background: "transparent", color: "var(--ink)" }}
+            >
+              I&apos;m an admin
+            </ButtonWithInfo>
+          </div>
         </div>
+
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/ensv2_subname_manager_banner.png"
+          alt="ENS Subname Manager"
+          style={{
+            flex: "1 1 300px",
+            minWidth: 260,
+            maxWidth: 440,
+            width: "100%",
+            height: "auto",
+            borderRadius: 16,
+            border: "1px solid var(--line)",
+          }}
+        />
       </section>
 
       <section>
