@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 }
 
 /**
- * POST /api/admin/subgroup — create a named subgroup (eng.acme.eth) under the caller's org, with its
+ * POST /api/admin/subgroup — create a named subgroup (eng.org.eth) under the caller's org, with its
  * own UserRegistry and an optional delegated manager (holds ROLE_REGISTRAR on the subgroup only).
  * The platform key (which owns the org parent) signs. Admin-gated: the caller must administer the org.
  */

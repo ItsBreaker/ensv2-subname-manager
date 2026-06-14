@@ -10,9 +10,9 @@ import { getSupabase } from "./supabase";
  */
 
 export interface EnrolledOrg {
-  /** Verified email domain that qualifies a member, e.g. "acme.com". */
+  /** Verified email domain that qualifies a member, e.g. "org.com". */
   domain: string;
-  /** ENS parent the member receives a subname under, e.g. "acme.eth". */
+  /** ENS parent the member receives a subname under, e.g. "org.eth". */
   parent: string;
   /** Deployed UserRegistry subregistry address (null until provisioned). */
   subregistry: string | null;

@@ -1,15 +1,15 @@
 import { getSupabase } from "./supabase";
 
 /**
- * Subgroups index: named sub-namespaces (eng.acme.eth) under an org parent, each backed by its own
+ * Subgroups index: named sub-namespaces (eng.org.eth) under an org parent, each backed by its own
  * on-chain UserRegistry. This table mirrors on-chain state for UX (listing, member-claim routing) —
  * the registry address + manager are derivable on-chain, but cached here to avoid extra reads.
  * Server-only (secret key).
  */
 
 export interface Subgroup {
-  fqdn: string; // eng.acme.eth
-  parent: string; // acme.eth
+  fqdn: string; // eng.org.eth
+  parent: string; // org.eth
   label: string; // eng
   childRegistry: string; // 0x...
   manager: string | null; // delegated manager wallet
@@ -35,7 +35,7 @@ export async function getSubgroups(parent: string): Promise<Subgroup[]> {
   }));
 }
 
-/** Look up a single subgroup by its fqdn (eng.acme.eth). Server-only. */
+/** Look up a single subgroup by its fqdn (eng.org.eth). Server-only. */
 export async function getSubgroup(fqdn: string): Promise<Subgroup | null> {
   const { data, error } = await getSupabase()
     .from("subgroups")

@@ -16,7 +16,7 @@ export interface NameOption {
   available: boolean;
 }
 
-/** Derive a base ENS label from an email domain: "acme.com" -> "acme". */
+/** Derive a base ENS label from an email domain: "org.com" -> "org". */
 export function labelFromDomain(domain: string): string {
   const base = domain.trim().toLowerCase().split(".")[0] ?? "";
   return base.replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "");
