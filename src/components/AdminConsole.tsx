@@ -604,7 +604,7 @@ export function AdminConsole() {
             <input
               value={sgManager}
               onChange={(e) => setSgManager(e.target.value)}
-              placeholder="manager wallet 0x… (optional)"
+              placeholder="manager wallet 0x… (optional, defaults to you)"
               className={styles.mono}
               style={{ flex: "1 1 240px", minWidth: 200, border: "1px solid var(--line, #e6e8eb)", borderRadius: 8, padding: "8px 10px", font: "inherit" }}
             />

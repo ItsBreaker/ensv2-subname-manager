@@ -40,10 +40,14 @@ export async function POST(req: Request) {
     const label = (typeof body.label === "string" ? body.label : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
     if (!label) throw new HttpError(400, "Provide a valid subgroup label (letters, numbers, hyphens).");
 
-    let manager: `0x${string}` | undefined;
+    // Default the manager to the admin who creates it (their session wallet), unless they specify one.
+    let manager: `0x${string}`;
     if (typeof body.manager === "string" && body.manager.trim()) {
       if (!isAddress(body.manager.trim())) throw new HttpError(400, "Manager must be a valid wallet address.");
       manager = getAddress(body.manager.trim());
+    } else {
+      if (!isAddress(member.wallet)) throw new HttpError(400, "Your account has no wallet to manage this subgroup.");
+      manager = getAddress(member.wallet);
     }
 
     const clients = getServerSigner();
