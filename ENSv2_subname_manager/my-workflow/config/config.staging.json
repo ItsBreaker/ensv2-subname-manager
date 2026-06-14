@@ -1,12 +1,10 @@
 {
-  "schedule": "*/30 * * * * *",
-  "domain": "your-domain.com",
-  "token": "paste-the-token-from-/api/admin/verify/start",
   "evms": [
     {
-      "verifierAddress": "0xYourDeployedDomainVerifierAddress",
+      "verifierAddress": "0x754AD90E8bCd7fb645126bB4626643D2a97da2b5",
       "chainName": "ethereum-testnet-sepolia",
       "gasLimit": "500000"
     }
-  ]
+  ],
+  "authorizedKeys": []
 }

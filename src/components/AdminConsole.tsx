@@ -192,7 +192,9 @@ export function AdminConsole() {
       const data = (await res.json()) as { ok?: boolean; verified?: boolean; error?: string };
       if (res.ok && data.ok && data.verified) {
         setVerify({ status: "idle" });
-        await loadProvision();
+        // Refresh both flows: the set-up flow advances to provisioning, and the managed view's
+        // verified badge flips (for orgs that pre-date the verification gate).
+        await Promise.all([loadProvision(), loadAdmin()]);
       } else {
         setVerifyMsg(data.error ?? "TXT record not found yet. DNS can take a few minutes — try again shortly.");
         setVerify({ status: "record", value: verify.value, domain: verify.domain });
@@ -201,7 +203,7 @@ export function AdminConsole() {
       setVerifyMsg(e instanceof Error ? e.message : "Check failed.");
       setVerify({ status: "record", value: verify.value, domain: verify.domain });
     }
-  }, [verify, getAccessToken, loadProvision]);
+  }, [verify, getAccessToken, loadProvision, loadAdmin]);
 
   const handleProvision = useCallback(
     async (label: string) => {
@@ -313,6 +315,50 @@ export function AdminConsole() {
             </span>
           )}
         </div>
+
+        {!admin.verified && (
+          <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: "1px solid var(--line, #e6e8eb)" }}>
+            {verify.status === "idle" ? (
+              <>
+                <p className={styles.cardText} style={{ margin: "0 0 8px" }}>
+                  Prove you control <strong>{admin.domain}</strong> to verify this organization.
+                  <InfoTip>
+                    Add a DNS TXT record to your domain. Controlling the domain (not just one mailbox)
+                    is what authorizes you to manage the org&apos;s name. Required to provision a name
+                    and to pass the on-chain CRE check.
+                  </InfoTip>
+                </p>
+                <button className={styles.primaryButton} onClick={handleVerifyStart}>
+                  Verify domain
+                </button>
+              </>
+            ) : (
+              <>
+                <p className={styles.cardText} style={{ margin: "0 0 8px" }}>
+                  Add this <strong>TXT</strong> record to <strong>{verify.domain}</strong>, then check:
+                </p>
+                <p
+                  className={styles.mono}
+                  style={{ margin: "0 0 10px", padding: "8px 10px", background: "#f1f3f5", borderRadius: 8, wordBreak: "break-all" }}
+                >
+                  {verify.value}
+                </p>
+                <button
+                  className={styles.primaryButton}
+                  onClick={handleVerifyCheck}
+                  disabled={verify.status === "checking"}
+                >
+                  {verify.status === "checking" ? "Checking…" : "Check verification"}
+                </button>
+              </>
+            )}
+            {verifyMsg && (
+              <p className={styles.cardText} style={{ margin: "8px 0 0", color: "var(--muted, #6b7280)", fontSize: 13 }}>
+                {verifyMsg}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className={styles.cardLabel}>
           Members of {admin.parent}

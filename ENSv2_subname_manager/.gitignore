@@ -2,3 +2,9 @@
 .env
 node_modules/
 dist/
+
+# Local HTTP-trigger test input — contains a real domain + verification token, keep it out of git.
+http_trigger_payload.json
+
+# CRE WASM build artifacts (regenerated on every `cre workflow simulate`).
+.cre_build_tmp.*
