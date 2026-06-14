@@ -69,11 +69,11 @@ function Landing({ onPick }: { onPick: (m: Mode) => void }) {
         style={{
           display: "flex",
           gap: 28,
-          alignItems: "center",
+          alignItems: "stretch",
           flexWrap: "wrap",
         }}
       >
-        <div style={{ flex: "1 1 340px", minWidth: 280 }}>
+        <div style={{ flex: "1 1 300px", minWidth: 240 }}>
           <p
             style={{
               font: "600 12px/1 ui-monospace, monospace",
@@ -112,20 +112,33 @@ function Landing({ onPick }: { onPick: (m: Mode) => void }) {
           </div>
         </div>
 
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/ensv2_subname_manager_banner.png"
-          alt="ENS Subname Manager"
+        {/* Banner fills a column that stretches to the text height, so it never grows taller than
+            the title/description/buttons. minHeight is the fallback when it wraps below on mobile. */}
+        <div
           style={{
-            flex: "1 1 300px",
-            minWidth: 260,
-            maxWidth: 440,
-            width: "100%",
-            height: "auto",
+            flex: "2 1 300px",
+            minWidth: 280,
+            minHeight: 200,
+            position: "relative",
+            overflow: "hidden",
             borderRadius: 16,
             border: "1px solid var(--line)",
           }}
-        />
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/ensv2_subname_manager_banner.png"
+            alt="ENS Subname Manager"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
+          />
+        </div>
       </section>
 
       <section>
