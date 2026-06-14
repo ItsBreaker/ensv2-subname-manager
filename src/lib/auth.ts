@@ -23,8 +23,11 @@ export interface Member {
   email: string;
   /** Lowercased email domain — the eligibility key. */
   domain: string;
-  /** Embedded (or linked) wallet address. */
+  /** Primary (embedded) wallet address — the default recipient. */
   wallet: string;
+  /** All of the user's Privy-verified ethereum wallets (embedded + linked external), lowercased.
+   *  Each was proven via signature when linked, so the server can safely issue to / act on any. */
+  wallets: string[];
 }
 
 export async function verifyMember(req: Request): Promise<Member> {
@@ -49,8 +52,16 @@ export async function verifyMember(req: Request): Promise<Member> {
   const wallet = user.wallet?.address ?? null;
   if (!email || !wallet) throw new HttpError(403, "Account is missing a verified email or wallet.");
 
+  // Every linked ethereum wallet (embedded + external) the user has proven control of via Privy.
+  const wallets = user.linkedAccounts
+    .filter((a): a is typeof a & { address: string } =>
+      a.type === "wallet" && (a as { chainType?: string }).chainType === "ethereum" && typeof (a as { address?: string }).address === "string",
+    )
+    .map((a) => a.address.toLowerCase());
+  const allWallets = Array.from(new Set([wallet.toLowerCase(), ...wallets]));
+
   const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  return { userId, email, domain, wallet };
+  return { userId, email, domain, wallet, wallets: allWallets };
 }
 
 /** Translate a thrown error (HttpError or otherwise) into a JSON error response. */

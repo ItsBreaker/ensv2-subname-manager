@@ -130,6 +130,21 @@ http_trigger_payload.json`. Funded key = `CRE_ETH_PRIVATE_KEY` (no 0x) in
 excluded from the Next typecheck (its own toolchain). Live per-user path needs the workflow DEPLOYED
 to the DON + `authorizedKeys` set. Then subgroups (EAC).
 
+**Connect-your-own-wallet (both directions):** login stays email-first (`loginMethods: ["email"]`);
+external wallets are *linked* additively via Privy `linkWallet()` (each proven by signature).
+`useSession` exposes `wallets` (embedded + external) + `linkWallet`; server `verifyMember` returns
+`wallets` (all Privy-verified ethereum addresses, from `user.linkedAccounts`). Two flows:
+(1) **Receive to your own wallet** — `/api/issue` takes an optional `owner`; the server only honors it
+if it's one of the caller's verified `wallets` (never a blind body address). Manager shows a "Receive
+at" picker + connect button. (2) **Bring your own parent** — `AdoptParent.tsx` (in the AdminConsole
+setup flow): the admin connects the OWNING wallet and, signing client-side with a viem walletClient
+built from `wallet.getEthereumProvider()`, runs `ensureParentSubregistry` + `grantRegistrarRole(issuer)`
+(issuer addr from `GET /api/platform`). Then `POST /api/admin/adopt` re-verifies on-chain
+(parent owned by one of the caller's wallets; subregistry attached; issuer holds `ROLE_REGISTRAR`)
+before recording the org with `owner_model:"user"`. Adoption needs NO DNS proof — wallet control of the
+name IS the authority (auth model). After adoption the normal platform-mediated `/api/issue` works
+under the user-owned parent.
+
 ## Build priority order
 
 When time is short, never sacrifice a working core for a second half-working integration:
