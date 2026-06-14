@@ -142,12 +142,18 @@ export interface Member {
 }
 
 
-/** List the issued subnames under a parent (the org's members). Server-only. */
+/**
+ * List the issued subnames under a parent — including those under its SUBGROUPS — i.e. the org's
+ * members. A subgroup member's stored parent is the subgroup fqdn (e.g. student.org.eth), but their
+ * fqdn always ends with `.org.eth`, so we match on the fqdn suffix to catch root + subgroup members.
+ * Server-only.
+ */
 export async function getMembers(parent: string): Promise<Member[]> {
+  const p = parent.trim().toLowerCase();
   const { data, error } = await getSupabase()
     .from("subnames")
     .select("fqdn, label, owner, created_at")
-    .eq("parent", parent)
+    .ilike("fqdn", `%.${p}`)
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(`members lookup failed: ${error.message}`);
