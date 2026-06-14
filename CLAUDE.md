@@ -86,7 +86,21 @@ set-up (provisioning) or the members list (`GET /api/admin/org`) with removal
 revocable by the org). Open enrollment: `orgs.open_enrollment` lets public-email users claim
 under a typed org name. **CSV bulk import:** admins upload emails/labels (`POST /api/admin/import`) →
 rows are stored in `reservations` (a `(parent,email)` table); a member with a reservation may claim
-it on sign-in (a third eligibility path in `/api/issue`, after domain match + open org). The UI is a
+it on sign-in (a third eligibility path in `/api/issue`, after domain match + open org).
+
+**Subgroups (named sub-namespaces, EAC):** an org can partition its namespace into nested branches
+like `eng.acme.eth`, each with its OWN UserRegistry subregistry and an optional delegated manager.
+This is depth-2 of the same EAC/UserRegistry pattern — `src/lib/ens/subgroups.ts` generalizes
+subregistry.ts/issuer.ts to operate on ANY registry address (the org's UserRegistry, not just the
+root `.eth` PermissionedRegistry): `createSubgroup` deploys the child registry, registers the label
+in the parent registry with the child attached at mint, and `grantRoles(ROLE_REGISTRAR)` to a manager
+on the child **only** (so a manager issues under `eng.acme.eth` but not the root or siblings);
+`issueUnderSubgroup` mints `alice.eng.acme.eth` into the child registry. Validated live via
+`npm run create:subgroup` before wiring the app. Server: `GET/POST /api/admin/subgroup` (admin-gated,
+platform key signs), indexed in the `subgroups` table (`src/lib/subgroups.ts`). `/api/issue` takes an
+optional `subgroup` label → routes to `issueUnderSubgroup`; `/api/org` returns the org's subgroups so
+the member UI offers a group picker. AdminConsole has a create-subgroup form (label + optional manager
+wallet); Manager shows the picker. The UI is a
 light/ENS theme (white bg, blue accent) driven by CSS variables in `globals.css`.
 
 **Admin proof (DNS, working):** an admin proves they control the org's domain (not just one mailbox —

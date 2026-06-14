@@ -10,6 +10,7 @@
     "lint": "next lint",
     "register:parent": "node --env-file=.env.local --import tsx scripts/register-parent.ts",
     "issue:subname": "node --env-file=.env.local --import tsx scripts/issue-subname.ts",
+    "create:subgroup": "node --env-file=.env.local --import tsx scripts/create-subgroup.ts",
     "resolve": "node --env-file=.env.local --import tsx scripts/resolve.ts"
   },
   "dependencies": {

@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { getAddress } from "viem";
 import { OnchainIssuer } from "@/lib/ens/issuer";
+import { issueUnderSubgroup } from "@/lib/ens/subgroups";
 import { ensurePlatformResolver, setNameAddr } from "@/lib/ens/records";
 import { getServerSigner } from "@/lib/ens/serverSigner";
 import { getActiveOrgByParent, getOpenOrgByParent, getOrgByDomain, normalizeParentName } from "@/lib/orgs";
+import { getSubgroup } from "@/lib/subgroups";
 import { getReservation, markReservationClaimed } from "@/lib/reservations";
 import { getSupabase } from "@/lib/supabase";
 import { HttpError, toErrorResponse, verifyMember } from "@/lib/auth";
@@ -25,8 +27,9 @@ export async function POST(req: Request) {
   try {
     const member = await verifyMember(req);
 
-    const body = (await req.json().catch(() => ({}))) as { label?: unknown; parent?: unknown };
+    const body = (await req.json().catch(() => ({}))) as { label?: unknown; parent?: unknown; subgroup?: unknown };
     let label = (typeof body.label === "string" ? body.label : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
+    const subgroupLabel = (typeof body.subgroup === "string" ? body.subgroup : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
 
     // Resolve the target org. Precedence: verified domain match → typed open org → CSV reservation.
     let org = await getOrgByDomain(member.domain);
@@ -49,7 +52,14 @@ export async function POST(req: Request) {
     }
     if (!label) throw new HttpError(400, "Provide a valid label (letters, numbers, hyphens).");
 
-    const fqdn = `${label}.${org.parent}`;
+    // Optional: claim under one of the org's subgroups (alice.eng.acme.eth) instead of the root.
+    const subgroup = subgroupLabel ? await getSubgroup(`${subgroupLabel}.${org.parent}`) : null;
+    if (subgroupLabel && !subgroup) {
+      throw new HttpError(400, `Subgroup "${subgroupLabel}.${org.parent}" doesn't exist.`);
+    }
+
+    const issueParent = subgroup ? subgroup.fqdn : org.parent; // eng.acme.eth or acme.eth
+    const fqdn = `${label}.${issueParent}`;
     const supabase = getSupabase();
 
     const { data: existing } = await supabase.from("subnames").select("fqdn").eq("fqdn", fqdn).maybeSingle();
@@ -60,8 +70,14 @@ export async function POST(req: Request) {
 
     // Deploy/reuse the platform resolver, mint with it set, then make the name resolve to the owner.
     const resolver = await ensurePlatformResolver(publicClient, walletClient);
-    const issuer = new OnchainIssuer({ publicClient, walletClient });
-    const issued = await issuer.issue({ parent: org.parent, label, owner, resolver });
+    const clients = { publicClient, walletClient };
+
+    // Mint under the subgroup's registry, or the org root, depending on the request.
+    const issued = subgroup
+      ? await issueUnderSubgroup(clients, { parent: org.parent, subgroup: subgroup.label, label, owner, resolver })
+          .then((r) => ({ fqdn: r.fqdn, label, parent: subgroup.fqdn, owner, subregistry: r.childRegistry, txHash: r.txHash }))
+      : await new OnchainIssuer(clients).issue({ parent: org.parent, label, owner, resolver });
+
     await publicClient.waitForTransactionReceipt({ hash: issued.txHash });
     const addrHash = await setNameAddr(publicClient, walletClient, { resolver, name: issued.fqdn, address: owner });
     await publicClient.waitForTransactionReceipt({ hash: addrHash });
@@ -76,7 +92,7 @@ export async function POST(req: Request) {
       claimed_by: member.userId,
       domain: member.domain,
     });
-    await markReservationClaimed(org.parent, member.email); // no-op unless this was an invite
+    if (!subgroup) await markReservationClaimed(org.parent, member.email); // no-op unless this was an invite
 
     return NextResponse.json({
       ok: true,
