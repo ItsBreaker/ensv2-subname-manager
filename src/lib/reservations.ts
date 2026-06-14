@@ -67,6 +67,16 @@ export async function createReservations(
   return data?.length ?? records.length;
 }
 
+/** Move a subgroup's pending invites back to the org root (used when a subgroup is deleted). */
+export async function resetSubgroupReservations(parent: string, subgroupLabel: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("reservations")
+    .update({ subgroup: null })
+    .eq("parent", parent)
+    .eq("subgroup", subgroupLabel.trim().toLowerCase());
+  if (error) throw new Error(`failed to reset subgroup invites: ${error.message}`);
+}
+
 /** Delete a single invite (reservation) by email under a parent. */
 export async function deleteReservation(parent: string, email: string): Promise<void> {
   const { error } = await getSupabase()

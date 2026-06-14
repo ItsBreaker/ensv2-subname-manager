@@ -62,6 +62,7 @@ export function AdminConsole() {
   const [sgManager, setSgManager] = useState("");
   const [sgStatus, setSgStatus] = useState<"idle" | "creating">("idle");
   const [sgMsg, setSgMsg] = useState<string | null>(null);
+  const [removingSubgroup, setRemovingSubgroup] = useState<string | null>(null);
   const [importSubgroup, setImportSubgroup] = useState(""); // "" = org root; else a subgroup label
   const [removingInvite, setRemovingInvite] = useState<string | null>(null);
   const [clearingInvites, setClearingInvites] = useState(false);
@@ -143,6 +144,27 @@ export function AdminConsole() {
       setSgStatus("idle");
     }
   }, [sgLabel, sgManager, getAccessToken, loadSubgroups]);
+
+  const handleDeleteSubgroup = useCallback(
+    async (label: string) => {
+      setRemovingSubgroup(label);
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/admin/subgroup/remove", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ label }),
+        });
+        if (res.ok) {
+          await loadSubgroups();
+          await loadAdmin(); // some invites may have moved back to the root
+        }
+      } finally {
+        setRemovingSubgroup(null);
+      }
+    },
+    [getAccessToken, loadSubgroups, loadAdmin],
+  );
 
   const loadProvision = useCallback(async () => {
     setProv({ phase: "loading" });
@@ -669,16 +691,26 @@ export function AdminConsole() {
                     fontSize: 13,
                   }}
                 >
-                  <span className={styles.mono}>{s.fqdn}</span>
-                  <span style={{ color: "var(--muted, #6b7280)", display: "inline-flex", gap: 4 }}>
-                    {s.manager ? (
-                      <>
-                        manager <WalletAddress address={s.manager} style={{ fontSize: 12 }} />
-                      </>
-                    ) : (
-                      "no manager"
-                    )}
+                  <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <span className={styles.mono}>{s.fqdn}</span>
+                    <span style={{ color: "var(--muted, #6b7280)", display: "inline-flex", gap: 4, fontSize: 12 }}>
+                      {s.manager ? (
+                        <>
+                          manager <WalletAddress address={s.manager} style={{ fontSize: 12 }} />
+                        </>
+                      ) : (
+                        "no manager"
+                      )}
+                    </span>
                   </span>
+                  <button
+                    className={styles.ghostButton}
+                    onClick={() => handleDeleteSubgroup(s.label)}
+                    disabled={removingSubgroup === s.label}
+                    style={{ padding: "5px 10px", fontSize: 12 }}
+                  >
+                    {removingSubgroup === s.label ? "Deleting…" : "Delete"}
+                  </button>
                 </li>
               ))}
             </ul>
