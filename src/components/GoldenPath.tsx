@@ -85,13 +85,14 @@ function Landing({ onPick }: { onPick: (m: Mode) => void }) {
           >
             Onboard to ENS
           </p>
-          <h1 style={{ fontSize: 40, lineHeight: 1.1, margin: "14px 0 14px", maxWidth: "16ch" }}>
-            Your name, under your organization.
+          <h1 style={{ fontSize: 40, lineHeight: 1.1, margin: "14px 0 14px", maxWidth: "18ch" }}>
+            ENSv2 Subname Manager
           </h1>
           <p style={{ color: "var(--muted)", fontSize: 17, maxWidth: "52ch", margin: 0 }}>
-            Sign in with your email and claim a real ENS name like{" "}
-            <strong style={{ color: "var(--ink)" }}>you.org.eth</strong>. No seed phrases, no crypto
-            knowledge. Every control explains itself in plain language.
+            Issue, manage, and revoke ENS subnames for your organization&apos;s members at scale. They
+            sign in with just their email and get a real name like{" "}
+            <strong style={{ color: "var(--ink)" }}>you.org.eth</strong>, with no seed phrases or crypto
+            knowledge.
           </p>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 26 }}>
