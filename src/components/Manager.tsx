@@ -61,7 +61,7 @@ export function Manager({
   mode: Mode;
   setMode: (m: Mode) => void;
 }) {
-  const { email, verifiedEmailDomain, address, logout } = session;
+  const { email, verifiedEmailDomain, address, wallets, logout, linkWallet } = session;
   const { getAccessToken } = usePrivy();
 
   const [orgState, setOrgState] = useState<OrgState>({ loading: true });
@@ -72,6 +72,7 @@ export function Manager({
   const [error, setError] = useState<string | null>(null);
   const [showClaim, setShowClaim] = useState(false);
   const [subgroup, setSubgroup] = useState(""); // "" = the org root; else a subgroup label
+  const [recipient, setRecipient] = useState(""); // "" = the embedded wallet; else a linked address
 
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -132,6 +133,7 @@ export function Manager({
             label,
             ...(parentOverride ? { parent: parentOverride } : {}),
             ...(subgroup ? { subgroup } : {}),
+            ...(recipient ? { owner: recipient } : {}),
           }),
         });
         const data = (await res.json()) as { ok?: boolean; error?: string } & Partial<IssueResult>;
@@ -146,7 +148,7 @@ export function Manager({
         setStatus("error");
       }
     },
-    [label, subgroup, getAccessToken],
+    [label, subgroup, recipient, getAccessToken],
   );
 
   const handleSaveProfile = useCallback(async () => {
@@ -178,6 +180,38 @@ export function Manager({
         <span className={styles.mono}>{error}</span>
       </p>
     ) : null;
+
+  const externalWallets = wallets.filter((w) => !w.embedded);
+  // "Receive at" picker: default to the embedded wallet, or any external wallet the user has linked.
+  const recipientPicker = (
+    <label className={styles.field} style={{ marginBottom: 10 }}>
+      <span className={styles.fieldLabel}>
+        Receive at
+        <InfoTip>
+          Which wallet should own this name. By default it&apos;s the secure wallet we created for you.
+          You can connect your own wallet (like MetaMask) and receive the name there instead.
+        </InfoTip>
+      </span>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <select
+          className={styles.input}
+          style={{ flex: "1 1 220px" }}
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+        >
+          <option value="">{address ? `${shortAddress(address)} — your wallet` : "your wallet"}</option>
+          {externalWallets.map((w) => (
+            <option key={w.address} value={w.address}>
+              {shortAddress(w.address)} — {w.walletClientType}
+            </option>
+          ))}
+        </select>
+        <button type="button" className={styles.ghostButton} onClick={linkWallet}>
+          Connect a wallet
+        </button>
+      </div>
+    </label>
+  );
 
   return (
     <div className={styles.wrap}>
@@ -411,6 +445,7 @@ export function Manager({
               </select>
             </label>
           )}
+          {recipientPicker}
           <div className={styles.issueRow}>
             <div className={styles.inputGroup}>
               <input

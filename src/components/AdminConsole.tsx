@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { AdoptParent } from "./AdoptParent";
 import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
 
@@ -697,6 +698,12 @@ export function AdminConsole() {
           <br />
           <span className={styles.mono}>{prov.message}</span>
         </p>
+      )}
+
+      {/* Alternative to registering a new name: bring a parent you already own. Needs no DNS proof —
+          wallet control of the name IS the authority. */}
+      {(prov.phase === "suggest" || prov.phase === "unverified") && (
+        <AdoptParent onAdopted={loadAdmin} />
       )}
     </section>
   );

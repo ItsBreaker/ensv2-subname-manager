@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAddress } from "viem";
+import { getAddress, isAddress } from "viem";
 import { OnchainIssuer } from "@/lib/ens/issuer";
 import { issueUnderSubgroup } from "@/lib/ens/subgroups";
 import { ensurePlatformResolver, setNameAddr } from "@/lib/ens/records";
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   try {
     const member = await verifyMember(req);
 
-    const body = (await req.json().catch(() => ({}))) as { label?: unknown; parent?: unknown; subgroup?: unknown };
+    const body = (await req.json().catch(() => ({}))) as { label?: unknown; parent?: unknown; subgroup?: unknown; owner?: unknown };
     let label = (typeof body.label === "string" ? body.label : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
     const subgroupLabel = (typeof body.subgroup === "string" ? body.subgroup : "").toLowerCase().replace(/[^a-z0-9-]/g, "");
 
@@ -65,7 +65,16 @@ export async function POST(req: Request) {
     const { data: existing } = await supabase.from("subnames").select("fqdn").eq("fqdn", fqdn).maybeSingle();
     if (existing) throw new HttpError(409, `${fqdn} is already taken.`);
 
-    const owner = getAddress(member.wallet);
+    // Recipient: the embedded wallet by default, or another wallet the member has linked (proven via
+    // Privy signature). We never trust an arbitrary body address — it must be one of THEIR wallets.
+    let owner = getAddress(member.wallet);
+    if (typeof body.owner === "string" && body.owner.trim()) {
+      const requested = body.owner.trim();
+      if (!isAddress(requested) || !member.wallets.includes(requested.toLowerCase())) {
+        throw new HttpError(400, "That wallet isn't linked to your account — connect it first, then claim.");
+      }
+      owner = getAddress(requested);
+    }
     const { publicClient, walletClient } = getServerSigner();
 
     // Deploy/reuse the platform resolver, mint with it set, then make the name resolve to the owner.
