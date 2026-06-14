@@ -35,12 +35,7 @@ import {
   getParentState,
 } from "./subregistry";
 import type { Clients } from "./issuer";
-import {
-  ROLE_REGISTRAR,
-  ROLE_REGISTRAR_ADMIN,
-  ROOT_RESOURCE,
-  V2_DEFAULT_OWNER_ROLE_BITMAP,
-} from "./roles";
+import { ROLE_REGISTRAR, ROOT_RESOURCE, V2_DEFAULT_OWNER_ROLE_BITMAP } from "./roles";
 
 function requireAccount(walletClient: WalletClient) {
   const account = walletClient.account;
@@ -135,7 +130,9 @@ export function grantRegistrarRole(
 ): Promise<Hex> {
   const { publicClient, walletClient } = clients;
   const account = requireAccount(walletClient);
-  const roleBitmap = args.roleBitmap ?? (ROLE_REGISTRAR | ROLE_REGISTRAR_ADMIN);
+  // Only ROLE_REGISTRAR — the manager just needs to issue names. Granting the *_ADMIN counterpart
+  // reverts (its admin role is out of the uint256 range), so don't include it.
+  const roleBitmap = args.roleBitmap ?? ROLE_REGISTRAR;
   const resource = args.resource ?? ROOT_RESOURCE;
   return publicClient
     .simulateContract({
