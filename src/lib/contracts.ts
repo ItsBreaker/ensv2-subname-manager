@@ -35,6 +35,14 @@ export const CONTRACTS = {
 export type ContractName = keyof typeof CONTRACTS;
 
 /**
+ * CRE DomainVerifier (Sepolia) — the on-chain target the Chainlink CRE workflow writes to after the
+ * DON verifies a domain's DNS-TXT challenge and reaches consensus. `isVerified(domain)` reads
+ * `verifiedDomain[keccak256(domain)]`. Source: ENSv2_subname_manager/ (workflow + contract).
+ */
+export const DOMAIN_VERIFIER_ADDRESS =
+  "0x754AD90E8bCd7fb645126bB4626643D2a97da2b5" as const satisfies `0x${string}`;
+
+/**
  * ENSv1 contracts on Sepolia — used only by the onchain subname *fallback*
  * (NameWrapper / registry `setSubnodeRecord`, per architecture doc §6).
  *
