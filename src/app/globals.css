@@ -8,6 +8,9 @@
   --accent: #3889ff;
   --accent-ink: #ffffff;
   --accent2: #16a34a;
+  /* Soft ENS-style page wash. */
+  --wash-top: #f4f9ff;
+  --wash-bottom: #ffffff;
 }
 
 * {
@@ -22,6 +25,8 @@ body {
 
 body {
   background: var(--bg);
+  background-image: linear-gradient(180deg, var(--wash-top) 0%, var(--wash-bottom) 420px);
+  background-repeat: no-repeat;
   color: var(--ink);
   font:
     16px/1.6 -apple-system,
@@ -35,6 +40,53 @@ body {
 
 a {
   color: var(--accent);
+}
+
+/* Page container: 80% of the viewport (95% on small screens), gently capped on huge displays. */
+.appContainer {
+  width: 80%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .appContainer {
+    width: 95%;
+  }
+}
+
+/* App top bar. */
+.appBar {
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: saturate(1.2) blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.appBarInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brandDot {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #3889ff, #5b8dff);
 }
 
 code {

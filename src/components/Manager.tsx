@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import type { Session } from "@/hooks/useSession";
 import type { Mode } from "./GoldenPath";
 import { AdminConsole } from "./AdminConsole";
 import { InfoTip } from "./InfoTip";
+import { EnsName, WalletAddress } from "./ui";
 import styles from "./Manager.module.css";
 
 function defaultLabel(email: string | null): string {
@@ -13,15 +14,12 @@ function defaultLabel(email: string | null): string {
   return local.toLowerCase().replace(/[^a-z0-9-]/g, "");
 }
 
-function shortAddress(address: string): string {
-  return `${address.slice(0, 6)}…${address.slice(-4)}`;
-}
-
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
 
 type Reservation = { parent: string; label: string };
 type SubgroupOption = { label: string; fqdn: string };
+type ClaimedName = { fqdn: string; parent: string };
 
 type OrgState =
   | { loading: true }
@@ -32,6 +30,7 @@ type OrgState =
       subname: string | null;
       reservation: Reservation | null;
       subgroups: SubgroupOption[];
+      names: ClaimedName[];
     };
 
 const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
@@ -89,6 +88,7 @@ export function Manager({
         subname?: string | null;
         reservation?: Reservation | null;
         subgroups?: SubgroupOption[];
+        names?: ClaimedName[];
       };
       if (res.ok && data.ok) {
         setOrgState({
@@ -98,12 +98,13 @@ export function Manager({
           subname: data.subname ?? null,
           reservation: data.reservation ?? null,
           subgroups: data.subgroups ?? [],
+          names: data.names ?? [],
         });
       } else {
-        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [] });
+        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [], names: [] });
       }
     } catch {
-      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [] });
+      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [], names: [] });
     }
   }, [getAccessToken]);
 
@@ -111,10 +112,21 @@ export function Manager({
     void loadOrg();
   }, [loadOrg]);
 
+  // When the user connects a NEW external wallet, switch the recipient to it automatically.
+  const prevExternalCount = useRef(0);
+  useEffect(() => {
+    const ext = wallets.filter((w) => !w.embedded);
+    if (ext.length > prevExternalCount.current) {
+      setRecipient(ext[ext.length - 1].address);
+    }
+    prevExternalCount.current = ext.length;
+  }, [wallets]);
+
   const org = orgState.loading ? null : orgState.org;
   const reservation = orgState.loading ? null : orgState.reservation;
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
   const subgroups = orgState.loading ? [] : orgState.subgroups;
+  const allNames = orgState.loading ? [] : orgState.names;
   // The parent the chosen subgroup (or the org root) issues under, e.g. eng.acme.eth or acme.eth.
   const claimParent = org ? (subgroup ? `${subgroup}.${org.parent}` : org.parent) : "";
 
@@ -195,14 +207,14 @@ export function Manager({
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select
           className={styles.input}
-          style={{ flex: "1 1 220px" }}
+          style={{ flex: "1 1 320px", fontFamily: "ui-monospace, monospace", fontSize: 12 }}
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
         >
-          <option value="">{address ? `${shortAddress(address)} — your wallet` : "your wallet"}</option>
+          <option value="">{address ? `${address} (your wallet)` : "your wallet"}</option>
           {externalWallets.map((w) => (
             <option key={w.address} value={w.address}>
-              {shortAddress(w.address)} — {w.walletClientType}
+              {w.address} ({w.walletClientType})
             </option>
           ))}
         </select>
@@ -254,8 +266,18 @@ export function Manager({
       </div>
 
       <section className={styles.card}>
-        <div className={styles.cardLabel}>Your session</div>
+        <div className={styles.cardLabel}>Your details</div>
         <dl className={styles.defs}>
+          <div className={styles.defRow}>
+            <dt>
+              ENS name
+              <InfoTip>
+                Your web3 username. People can find and pay you at this name instead of a long wallet
+                address, and it works in any app that supports ENS.
+              </InfoTip>
+            </dt>
+            <dd>{myName ? <EnsName name={myName} /> : "not claimed yet"}</dd>
+          </div>
           <div className={styles.defRow}>
             <dt>Email</dt>
             <dd>{email ?? "not set"}</dd>
@@ -264,15 +286,11 @@ export function Manager({
             <dt>
               Wallet
               <InfoTip>
-                A secure wallet we created for you automatically when you signed in. You don&apos;t
-                need a seed phrase or browser extension.
+                The wallet your name points to. By default it&apos;s the secure wallet we created for
+                you at sign-in; you can also connect your own. Click to view it on Etherscan.
               </InfoTip>
             </dt>
-            <dd className={styles.mono}>{address ? shortAddress(address) : "provisioning…"}</dd>
-          </div>
-          <div className={styles.defRow}>
-            <dt>Verified domain</dt>
-            <dd className={styles.mono}>{verifiedEmailDomain ?? "not set"}</dd>
+            <dd>{address ? <WalletAddress address={address} /> : "provisioning…"}</dd>
           </div>
         </dl>
       </section>
@@ -292,7 +310,7 @@ export function Manager({
           </div>
           {result ? (
             <p className={styles.cardText}>
-              Thank you for setting up your name! <strong>{myName}</strong> is yours (
+              Thank you for setting up your name! <strong>{myName}</strong> has been assigned to you (
               <a
                 href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
                 target="_blank"
@@ -301,11 +319,14 @@ export function Manager({
                 view transaction
               </a>
               ).
+              <InfoTip>
+                Your organization issued you a real ENS subname on-chain and pointed it at your wallet.
+                You own it. It works anywhere ENS does, and your org can&apos;t take it without an
+                on-chain action you can see.
+              </InfoTip>
               <br />
-              Think of it as a username for web3: instead of a long wallet address like{" "}
-              <span className={styles.mono}>{address ? shortAddress(address) : "0x…"}</span>, people
-              can find and pay you at <strong>{myName}</strong>. It already points to your wallet and
-              works in any app that supports ENS. Add public profile details below — all optional.
+              Think of it as a username for web3: instead of a long wallet address, people can find and
+              pay you at <strong>{myName}</strong>. Add public profile details below, all optional.
             </p>
           ) : (
             <p className={styles.cardText}>
@@ -316,6 +337,12 @@ export function Manager({
               </InfoTip>
             </p>
           )}
+
+          <ul style={{ margin: "0 0 14px", paddingLeft: 18, color: "var(--muted)", fontSize: 13.5 }}>
+            <li>Get paid: share {myName} instead of your wallet address.</li>
+            <li>Prove membership: it shows you belong to your organization.</li>
+            <li>One identity: it carries your profile across wallets, OpenSea, and more.</li>
+          </ul>
 
           <div className={styles.profileGrid}>
             {PROFILE_FIELDS.map((f) => (
@@ -520,7 +547,7 @@ export function Manager({
           <div className={styles.cardLabel}>Not set up yet</div>
           <p className={styles.cardText} style={{ margin: 0 }}>
             <code>{verifiedEmailDomain ?? "your domain"}</code> doesn&apos;t have a name set up yet.
-            Ask your organization&apos;s admin to set it up — or, if that&apos;s you, switch to{" "}
+            Ask your organization&apos;s admin to set it up, or, if that&apos;s you, switch to{" "}
             <button onClick={() => setMode("admin")} style={linkButtonStyle}>
               Admin
             </button>
@@ -528,7 +555,76 @@ export function Manager({
           </p>
         </section>
       )}
+
+      {mode !== "admin" && allNames.length > 1 && (
+        <section className={styles.card}>
+          <div className={styles.cardLabel}>
+            All your names
+            <InfoTip>
+              Every name you&apos;ve claimed with this email, across organizations. Sign in anywhere
+              with the same email and they all follow you.
+            </InfoTip>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {allNames.map((n) => (
+              <li
+                key={n.fqdn}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "9px 0",
+                  borderTop: "1px solid var(--line)",
+                  fontSize: 14,
+                }}
+              >
+                <EnsName name={n.fqdn} />
+                <span style={{ color: "var(--muted)", fontSize: 13 }}>under {n.parent}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <FooterLinks myName={myName} />
     </div>
+  );
+}
+
+/** Footer: where to go next, with an InfoTip-backed explanation of how the name is used. */
+function FooterLinks({ myName }: { myName: string | null }) {
+  const linkStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 14,
+    fontWeight: 600,
+    textDecoration: "none",
+  };
+  return (
+    <section className={styles.card} style={{ background: "transparent" }}>
+      <div className={styles.cardLabel}>Take your name further</div>
+      <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+        <a style={linkStyle} href="https://app.ens.domains/" target="_blank" rel="noreferrer">
+          Create your own .eth name on ENS
+        </a>
+        <a
+          style={linkStyle}
+          href={myName ? `https://opensea.io/${myName}` : "https://opensea.io"}
+          target="_blank"
+          rel="noreferrer"
+        >
+          See your name on OpenSea
+        </a>
+        <a style={linkStyle} href="https://app.uniswap.org/" target="_blank" rel="noreferrer">
+          Send to a name on Uniswap
+        </a>
+      </div>
+      <p className={styles.cardText} style={{ margin: "12px 0 0", color: "var(--muted)" }}>
+        Your name is a real ENS record on Sepolia: it resolves to your wallet and shows up across apps
+        that support ENS, like wallets, OpenSea, and Uniswap.
+      </p>
+    </section>
   );
 }
 

@@ -18,10 +18,6 @@ import { ROLE_REGISTRAR } from "@/lib/ens/roles";
 import { InfoTip } from "./InfoTip";
 import styles from "./Manager.module.css";
 
-function shortAddress(a: string): string {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
 /**
  * "Bring your own parent" — an org admin who already owns their ENS name (bought outside the
  * platform) connects the owning wallet and grants the platform permission to issue member subnames.
@@ -149,7 +145,7 @@ export function AdoptParent({ onAdopted }: { onAdopted: () => void }) {
           </option>
           {externalWallets.map((w) => (
             <option key={w.address} value={w.address}>
-              {shortAddress(w.address)} — {w.walletClientType}
+              {w.address} ({w.walletClientType})
             </option>
           ))}
         </select>
@@ -183,7 +179,7 @@ export function AdoptParent({ onAdopted }: { onAdopted: () => void }) {
       )}
       {done && (
         <p className={styles.cardText} style={{ margin: "8px 0 0", color: "var(--accent2, #16a34a)", fontSize: 13 }}>
-          Done — your organization is set up. Members can now claim names under {parent.trim().toLowerCase()}.
+          Done. Your organization is set up. Members can now claim names under {parent.trim().toLowerCase()}.
         </p>
       )}
       {error && (
