@@ -324,12 +324,24 @@ export const permissionedRegistryAbi = [
     outputs: [{ name: "", type: "address" }],
   },
   // EnhancedAccessControl — the org-delegation primitive (grant a manager ROLE_REGISTRAR).
+  // grantRoles is for NON-root resources and reverts on resource 0 (EACRootResourceNotAllowed);
+  // registry-wide delegation (what `register` checks) must use grantRootRoles.
   {
     name: "grantRoles",
     type: "function",
     stateMutability: "nonpayable",
     inputs: [
       { name: "resource", type: "uint256" },
+      { name: "roleBitmap", type: "uint256" },
+      { name: "account", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "grantRootRoles",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
       { name: "roleBitmap", type: "uint256" },
       { name: "account", type: "address" },
     ],

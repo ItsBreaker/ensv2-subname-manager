@@ -45,9 +45,10 @@ Subnames are created two ways:
   **subregistry** — a `UserRegistry` (a UUPS `PermissionedRegistry`) deployed as a proxy via the
   VerifiableFactory (= `resolverFactory` 0xd2A6…). Flow: `getSubregistry`/`setSubregistry` on the
   `.eth` registry (`PermissionedRegistry` 0xDEDB…) to attach it, then `register(label, owner, 0,
-  resolver, roleBitmap, expiry)` on the subregistry to mint. Org delegation = `grantRoles(resource,
-  ROLE_REGISTRAR, manager)`. Code: `src/lib/ens/{subregistry,issuer,roles}.ts`; script
-  `npm run issue:subname`.
+  resolver, roleBitmap, expiry)` on the subregistry to mint. Org delegation = `grantRootRoles(
+  ROLE_REGISTRAR, manager)` (NOT `grantRoles(0, ...)` — that reverts with `EACRootResourceNotAllowed`;
+  `register` checks ROLE_REGISTRAR on the ROOT resource, which `grantRootRoles` grants). Code:
+  `src/lib/ens/{subregistry,issuer,roles}.ts`; script `npm run issue:subname`.
 - **Offchain (option, NOT built):** our OWN self-hosted CCIP-Read gateway (Durin-style). **NameStone
   was dropped** — it requires a parent the platform controls + per-domain enablement, incompatible
   with self-serve user-owned names.

@@ -123,24 +123,26 @@ export async function setSubregistryIn(
   return walletClient.writeContract(request);
 }
 
-/** Grant a manager ROLE_REGISTRAR (+ its admin) on `registry`'s root resource — delegate issuance. */
+/**
+ * Grant a manager registry-wide ROLE_REGISTRAR so they can issue names — delegate issuance. Uses
+ * `grantRootRoles` (NOT `grantRoles`, which reverts on the root resource with EACRootResourceNotAllowed);
+ * `register` checks ROLE_REGISTRAR on the ROOT resource, which is exactly what this grants. Only
+ * ROLE_REGISTRAR is granted (the manager issues, but can't re-delegate).
+ */
 export function grantRegistrarRole(
   clients: Clients,
-  args: { registry: Address; manager: Address; roleBitmap?: bigint; resource?: bigint },
+  args: { registry: Address; manager: Address; roleBitmap?: bigint },
 ): Promise<Hex> {
   const { publicClient, walletClient } = clients;
   const account = requireAccount(walletClient);
-  // Only ROLE_REGISTRAR — the manager just needs to issue names. Granting the *_ADMIN counterpart
-  // reverts (its admin role is out of the uint256 range), so don't include it.
   const roleBitmap = args.roleBitmap ?? ROLE_REGISTRAR;
-  const resource = args.resource ?? ROOT_RESOURCE;
   return publicClient
     .simulateContract({
       account,
       address: getAddress(args.registry),
       abi: permissionedRegistryAbi,
-      functionName: "grantRoles",
-      args: [resource, roleBitmap, getAddress(args.manager)],
+      functionName: "grantRootRoles",
+      args: [roleBitmap, getAddress(args.manager)],
     })
     .then(({ request }) => walletClient.writeContract(request));
 }
