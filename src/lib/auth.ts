@@ -53,7 +53,7 @@ export async function verifyMember(req: Request): Promise<Member> {
   if (!email || !wallet) throw new HttpError(403, "Account is missing a verified email or wallet.");
 
   // Every linked ethereum wallet (embedded + external) the user has proven control of via Privy.
-  const wallets = user.linkedAccounts
+  const wallets = (user.linkedAccounts ?? [])
     .filter((a): a is typeof a & { address: string } =>
       a.type === "wallet" && (a as { chainType?: string }).chainType === "ethereum" && typeof (a as { address?: string }).address === "string",
     )
