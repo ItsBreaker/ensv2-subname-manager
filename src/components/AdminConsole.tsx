@@ -148,12 +148,19 @@ export function AdminConsole() {
       const token = await getAccessToken();
       const res = await fetch("/api/provision", { headers: { authorization: `Bearer ${token}` } });
       const data = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
         kind?: string;
         domain?: string;
         parent?: string;
         readyAt?: string | null;
         options?: NameOption[];
       };
+      // Surface server errors instead of silently showing an empty name list.
+      if (!res.ok || data.ok === false) {
+        setProv({ phase: "error", message: data.error ?? `Couldn't load provisioning (${res.status}).` });
+        return;
+      }
       if (data.kind === "pending" && data.parent) {
         setProv({
           phase: "registering",
@@ -167,10 +174,10 @@ export function AdminConsole() {
       } else if (data.kind === "unprovisioned") {
         setProv({ phase: "suggest", options: data.options ?? [] });
       } else {
-        setProv({ phase: "suggest", options: [] });
+        setProv({ phase: "error", message: `Unexpected response: ${JSON.stringify(data)}` });
       }
-    } catch {
-      setProv({ phase: "suggest", options: [] });
+    } catch (e) {
+      setProv({ phase: "error", message: e instanceof Error ? e.message : "Network error loading provisioning." });
     }
   }, [getAccessToken]);
 
