@@ -93,9 +93,26 @@ light/ENS theme (white bg, blue accent) driven by CSS variables in `globals.css`
 doc §2) via a DNS-TXT challenge. `POST /api/admin/verify/start` stores a `verify_token` and returns
 a `ens-subname-verify=<token>` TXT record; `POST /api/admin/verify/check` does a server-side
 `dns.resolveTxt` on the org's domain and sets `domain_verified_at` on match. Shown as a verified
-badge in the AdminConsole. Needs `orgs` columns `verify_token` + `domain_verified_at`. **Next: CRE**
-runs the same domain check across the DON → BFT consensus → on-chain authorization (the prize: a
-simulating workflow), with this DNS path as the fallback. Then subgroups (EAC).
+badge in the AdminConsole. Verification is keyed by domain (`domain_verifications` table, see
+`src/lib/verifications.ts`) and **gates provisioning** (`/api/provision/start` rejects unverified;
+`/api/provision` returns `kind:"unverified"`). The earlier `orgs.verify_token`/`domain_verified_at`
+columns are superseded (unused).
+
+**CRE layer (prize, in `ENSv2_subname_manager/`):** the verifiable version of the DNS check — a
+Chainlink CRE TS workflow (`@chainlink/cre-sdk@1.11.0`, scaffolded by `cre init` into a SEPARATE
+project at `ENSv2_subname_manager/`). It's **HTTP-triggered and dynamic**: the `{domain, token}` come
+from the request body (`decodeJson(payload.input)`), never hardcoded in config. Each DON node fetches
+the domain's TXT via DNS-over-HTTPS, reaches consensus, then `runtime.report()` →
+`EVMClient.writeReport()` writes on-chain to `ENSv2_subname_manager/contracts/DomainVerifier.sol` (a
+`ReceiverTemplate` whose `_processReport` sets `verifiedDomain[keccak256(domain)]`; deployed to Sepolia
+at `0x754AD90E8bCd7fb645126bB4626643D2a97da2b5`, forwarder
+`0xF8344CFd5c43616a4366C34E3EEE75af79a74482`). The `ReceiverTemplate`/`IReceiver`/`IERC165` bases are
+vendored from the CRE docs samples (NOT npm). That on-chain write is the prize requirement; target is a
+successful `cre workflow simulate . --broadcast --non-interactive --trigger-index 0 --http-payload
+http_trigger_payload.json`. Funded key = `CRE_ETH_PRIVATE_KEY` (no 0x) in
+`ENSv2_subname_manager/.env`. The backend DNS path is the fallback. `ENSv2_subname_manager/` is
+excluded from the Next typecheck (its own toolchain). Live per-user path needs the workflow DEPLOYED
+to the DON + `authorizedKeys` set. Then subgroups (EAC).
 
 ## Build priority order
 

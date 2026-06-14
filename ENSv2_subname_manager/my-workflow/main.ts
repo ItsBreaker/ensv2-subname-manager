@@ -2,9 +2,10 @@ import {
   cre,
   Runner,
   consensusIdenticalAggregation,
+  decodeJson,
   getNetwork,
   hexToBase64,
-  type CronPayload,
+  type HTTPPayload,
   type HTTPSendRequester,
   type Runtime,
 } from "@chainlink/cre-sdk";
@@ -13,9 +14,19 @@ import type { Config } from "./types/types";
 
 const TXT_PREFIX = "ens-subname-verify";
 
+/** The per-request inputs, supplied dynamically in the HTTP trigger body. */
+type VerifyInput = {
+  /** Any domain the caller controls, e.g. "acme.com". */
+  domain: string;
+  /** The challenge token issued by /api/admin/verify/start for that domain. */
+  token: string;
+};
+
 /**
  * Per-node compute: fetch the domain's TXT records over DNS-over-HTTPS and check whether our
- * challenge token is present. Returns a boolean; consensus is taken across the DON.
+ * challenge token is present. Returns a boolean; consensus is taken across the DON. The domain and
+ * token are threaded in from the request payload (NOT baked into config), so this verifies any
+ * caller's domain.
  */
 const checkDomainTxt = (sendRequester: HTTPSendRequester, domain: string, token: string): boolean => {
   const resp = sendRequester
@@ -33,8 +44,14 @@ const checkDomainTxt = (sendRequester: HTTPSendRequester, domain: string, token:
   );
 };
 
-const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string => {
-  const { domain, token, evms } = runtime.config;
+const onHttpTrigger = (runtime: Runtime<Config>, payload: HTTPPayload): string => {
+  // 0. Read the domain + token from the request body (dynamic, per caller).
+  const input = decodeJson(payload.input) as Partial<VerifyInput>;
+  const domain = input.domain?.toLowerCase().trim();
+  const token = input.token?.trim();
+  if (!domain || !token) {
+    throw new Error('HTTP trigger body must be {"domain": "...", "token": "..."}');
+  }
 
   // 1. Fetch the TXT across the DON and reach consensus on the boolean result.
   const httpClient = new cre.capabilities.HTTPClient();
@@ -44,13 +61,13 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 
   runtime.log(`domain=${domain} verified=${verified}`);
 
-  // 2. Write the verified result on-chain to DomainVerifier.
-  const evm = evms[0];
+  // 2. Write the verified result on-chain to DomainVerifier (keyed by keccak256(domain)).
+  const evm = runtime.config.evms[0];
   const network = getNetwork({ chainFamily: "evm", chainSelectorName: evm.chainName });
   if (!network) throw new Error(`Unknown chain selector name: ${evm.chainName}`);
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector);
 
-  const domainHash = keccak256(stringToBytes(domain.toLowerCase()));
+  const domainHash = keccak256(stringToBytes(domain));
   const reportData = encodeAbiParameters(parseAbiParameters("bytes32 domainHash, bool verified"), [
     domainHash,
     verified,
@@ -77,8 +94,11 @@ const onCronTrigger = (runtime: Runtime<Config>, _payload: CronPayload): string 
 };
 
 const initWorkflow = (config: Config) => {
-  const cron = new cre.capabilities.CronCapability();
-  return [cre.handler(cron.trigger({ schedule: config.schedule }), onCronTrigger)];
+  // HTTP trigger: the workflow is invoked per-verification with a {domain, token} body. authorizedKeys
+  // gates who may invoke a DEPLOYED workflow (the backend signer's EVM address); empty is fine for
+  // `cre workflow simulate`.
+  const http = new cre.capabilities.HTTPCapability();
+  return [cre.handler(http.trigger({ authorizedKeys: config.authorizedKeys ?? [] }), onHttpTrigger)];
 };
 
 export async function main() {

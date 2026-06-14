@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-// The CRE receiver base. It enforces "only the CRE forwarder may deliver reports" and verifies the
-// DON's signatures before calling `_processReport`. Import path comes from the Chainlink CRE contracts
-// package (see CRE getting-started part 4) — reconcile the exact path/constructor against the version
-// you install when you deploy.
-import {ReceiverTemplate} from "@chainlink/contracts-cre/ReceiverTemplate.sol";
+// The CRE receiver base (vendored locally — see ReceiverTemplate.sol). It enforces "only the CRE
+// forwarder may deliver reports" before calling `_processReport`.
+import {ReceiverTemplate} from "./ReceiverTemplate.sol";
 
 /**
  * DomainVerifier — the on-chain authorization target for the CRE domain-verification workflow.
@@ -26,8 +24,8 @@ contract DomainVerifier is ReceiverTemplate {
 
     /// Decodes the DON report and records verification. Called only after signature checks pass.
     function _processReport(bytes calldata report) internal override {
-        (bytes32 domainHash, bool isVerified) = abi.decode(report, (bytes32, bool));
-        if (isVerified && !verifiedDomain[domainHash]) {
+        (bytes32 domainHash, bool verified) = abi.decode(report, (bytes32, bool));
+        if (verified && !verifiedDomain[domainHash]) {
             verifiedDomain[domainHash] = true;
             emit DomainVerified(domainHash);
         }
