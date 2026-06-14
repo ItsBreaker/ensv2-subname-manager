@@ -76,39 +76,54 @@ export function Manager({
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const loadOrg = useCallback(async () => {
-    try {
-      const token = await getAccessToken();
-      const res = await fetch("/api/org", { headers: { authorization: `Bearer ${token}` } });
-      const data = (await res.json()) as {
-        ok?: boolean;
-        org?: { parent: string } | null;
-        isPublicDomain?: boolean;
-        subname?: string | null;
-        reservation?: Reservation | null;
-        subgroups?: SubgroupOption[];
-        names?: ClaimedName[];
-      };
-      if (res.ok && data.ok) {
-        setOrgState({
-          loading: false,
-          org: data.org ?? null,
-          isPublicDomain: !!data.isPublicDomain,
-          subname: data.subname ?? null,
-          reservation: data.reservation ?? null,
-          subgroups: data.subgroups ?? [],
-          names: data.names ?? [],
-        });
-      } else {
-        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [], names: [] });
+    setLoadError(false);
+    // Retry transient failures. Right after a brand-new sign-in, the embedded wallet can lag behind
+    // server-side verification, which 500s /api/org for a moment; a genuine "no org" returns ok:true
+    // with org=null and is handled immediately (no retry).
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/org", { headers: { authorization: `Bearer ${token}` } });
+        const data = (await res.json()) as {
+          ok?: boolean;
+          org?: { parent: string } | null;
+          isPublicDomain?: boolean;
+          subname?: string | null;
+          reservation?: Reservation | null;
+          subgroups?: SubgroupOption[];
+          names?: ClaimedName[];
+        };
+        if (res.ok && data.ok) {
+          setOrgState({
+            loading: false,
+            org: data.org ?? null,
+            isPublicDomain: !!data.isPublicDomain,
+            subname: data.subname ?? null,
+            reservation: data.reservation ?? null,
+            subgroups: data.subgroups ?? [],
+            names: data.names ?? [],
+          });
+          return;
+        }
+      } catch {
+        /* fall through to retry */
       }
-    } catch {
-      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [], names: [] });
+      await new Promise((r) => setTimeout(r, 1200));
     }
+    // Persistently failed — surface a retry rather than a misleading "not set up".
+    setLoadError(true);
+    setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [], names: [] });
   }, [getAccessToken]);
 
   useEffect(() => {
+    void loadOrg();
+  }, [loadOrg]);
+
+  const retryLoadOrg = useCallback(() => {
+    setOrgState({ loading: true });
     void loadOrg();
   }, [loadOrg]);
 
@@ -313,6 +328,17 @@ export function Manager({
           <p className={styles.cardText} style={{ margin: 0 }}>
             Checking your organization…
           </p>
+        </section>
+      ) : loadError ? (
+        <section className={styles.card}>
+          <div className={styles.cardLabel}>Couldn&apos;t load just now</div>
+          <p className={styles.cardText}>
+            We couldn&apos;t load your organization. This can happen for a few seconds right after your
+            first sign-in. Give it a moment and try again.
+          </p>
+          <button className={styles.primaryButton} onClick={retryLoadOrg}>
+            Try again
+          </button>
         </section>
       ) : myName ? (
         <section className={styles.card}>
