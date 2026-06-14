@@ -523,22 +523,60 @@ export function AdminConsole() {
           </div>
 
           {subgroups.length > 0 && (
-            <label className={styles.field} style={{ marginBottom: 10, maxWidth: 360 }}>
+            <div style={{ marginBottom: 12 }}>
               <span className={styles.fieldLabel}>Add this batch to</span>
-              <select
-                className={styles.input}
-                style={{ width: "100%" }}
-                value={importSubgroup}
-                onChange={(e) => setImportSubgroup(e.target.value)}
-              >
-                <option value="">{admin.parent} (organization root)</option>
-                {subgroups.map((s) => (
-                  <option key={s.fqdn} value={s.label}>
-                    {s.fqdn}
-                  </option>
-                ))}
-              </select>
-            </label>
+              {subgroups.length <= 3 ? (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
+                  {[{ value: "", text: "Organization root" }, ...subgroups.map((s) => ({ value: s.label, text: s.label }))].map(
+                    (opt) => {
+                      const active = importSubgroup === opt.value;
+                      return (
+                        <button
+                          key={opt.value || "root"}
+                          type="button"
+                          onClick={() => setImportSubgroup(opt.value)}
+                          style={{
+                            appearance: "none",
+                            cursor: "pointer",
+                            font: "600 13px/1 inherit",
+                            padding: "9px 16px",
+                            borderRadius: 999,
+                            border: active ? "1px solid var(--accent)" : "1px solid var(--line, #e6e8eb)",
+                            background: active ? "var(--accent)" : "#fff",
+                            color: active ? "#fff" : "var(--ink)",
+                          }}
+                        >
+                          {opt.text}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+              ) : (
+                <select
+                  className={styles.input}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    maxWidth: 360,
+                    marginTop: 6,
+                    border: "1px solid var(--line, #e6e8eb)",
+                    borderRadius: 10,
+                    background: "#fff",
+                    padding: "10px 12px",
+                  }}
+                  value={importSubgroup}
+                  onChange={(e) => setImportSubgroup(e.target.value)}
+                >
+                  <option value="">Organization root</option>
+                  {subgroups.map((s) => (
+                    <option key={s.fqdn} value={s.label}>
+                      {s.fqdn}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           )}
 
           {admin.invites.length > 0 && (
