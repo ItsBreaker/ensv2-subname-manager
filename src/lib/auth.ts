@@ -49,8 +49,11 @@ export async function verifyMember(req: Request): Promise<Member> {
 
   const user = await privy.getUser(userId);
   const email = user.email?.address ?? null;
-  const wallet = user.wallet?.address ?? null;
-  if (!email || !wallet) throw new HttpError(403, "Account is missing a verified email or wallet.");
+  // Email is the eligibility key and is required. The wallet is only the recipient/admin signer; a
+  // brand-new user's embedded wallet can lag a moment behind server-side getUser, so DON'T fail the
+  // whole session on it — routes that actually need a wallet (issuance) validate it themselves.
+  if (!email) throw new HttpError(403, "Account is missing a verified email.");
+  const wallet = user.wallet?.address ?? "";
 
   // Every linked ethereum wallet (embedded + external) the user has proven control of via Privy.
   const wallets = (user.linkedAccounts ?? [])
@@ -58,7 +61,7 @@ export async function verifyMember(req: Request): Promise<Member> {
       a.type === "wallet" && (a as { chainType?: string }).chainType === "ethereum" && typeof (a as { address?: string }).address === "string",
     )
     .map((a) => a.address.toLowerCase());
-  const allWallets = Array.from(new Set([wallet.toLowerCase(), ...wallets]));
+  const allWallets = Array.from(new Set([wallet, ...wallets].filter(Boolean).map((w) => w.toLowerCase())));
 
   const domain = email.split("@")[1]?.toLowerCase() ?? "";
   return { userId, email, domain, wallet, wallets: allWallets };
