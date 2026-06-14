@@ -416,25 +416,28 @@ export function Manager({
           {org && (
             <div style={{ borderTop: "1px solid var(--line, #2a2f3d)", marginTop: 18, paddingTop: 14 }}>
               {showClaim ? (
-                <div className={styles.issueRow}>
-                  <div className={styles.inputGroup}>
-                    <input
-                      className={styles.input}
-                      value={label}
-                      onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                      placeholder="yourname"
-                      spellCheck={false}
-                    />
-                    <span className={styles.suffix}>.{org.parent}</span>
+                <>
+                  {recipientPicker}
+                  <div className={styles.issueRow}>
+                    <div className={styles.inputGroup}>
+                      <input
+                        className={styles.input}
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                        placeholder="yourname"
+                        spellCheck={false}
+                      />
+                      <span className={styles.suffix}>.{org.parent}</span>
+                    </div>
+                    <button
+                      className={styles.primaryButton}
+                      onClick={() => handleIssue()}
+                      disabled={!label || status === "issuing"}
+                    >
+                      {status === "issuing" ? "Claiming…" : "Claim"}
+                    </button>
                   </div>
-                  <button
-                    className={styles.primaryButton}
-                    onClick={() => handleIssue()}
-                    disabled={!label || status === "issuing"}
-                  >
-                    {status === "issuing" ? "Claiming…" : "Claim"}
-                  </button>
-                </div>
+                </>
               ) : (
                 <button
                   className={styles.ghostButton}
@@ -463,6 +466,7 @@ export function Manager({
             </strong>
             . It&apos;ll be set up to resolve to your wallet.
           </p>
+          {recipientPicker}
           <div className={styles.issueRow}>
             <button
               className={styles.primaryButton}
@@ -559,6 +563,7 @@ export function Manager({
               spellCheck={false}
             />
           </label>
+          {recipientPicker}
           <div className={styles.issueRow}>
             <div className={styles.inputGroup}>
               <input

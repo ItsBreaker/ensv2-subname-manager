@@ -70,13 +70,17 @@ export async function POST(req: Request) {
 
     // Recipient: the embedded wallet by default, or another wallet the member has linked (proven via
     // Privy signature). We never trust an arbitrary body address — it must be one of THEIR wallets.
-    let owner = getAddress(member.wallet);
+    let owner: `0x${string}`;
     if (typeof body.owner === "string" && body.owner.trim()) {
       const requested = body.owner.trim();
       if (!isAddress(requested) || !member.wallets.includes(requested.toLowerCase())) {
         throw new HttpError(400, "That wallet isn't linked to your account — connect it first, then claim.");
       }
       owner = getAddress(requested);
+    } else if (member.wallet && isAddress(member.wallet)) {
+      owner = getAddress(member.wallet);
+    } else {
+      throw new HttpError(400, "Your wallet is still being set up. Refresh in a moment, or connect a wallet to receive the name.");
     }
     const { publicClient, walletClient } = getServerSigner();
 
