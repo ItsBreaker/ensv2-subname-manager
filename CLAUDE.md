@@ -95,8 +95,10 @@ a `ens-subname-verify=<token>` TXT record; `POST /api/admin/verify/check` does a
 `dns.resolveTxt` on the org's domain and sets `domain_verified_at` on match. Shown as a verified
 badge in the AdminConsole. Verification is keyed by domain (`domain_verifications` table, see
 `src/lib/verifications.ts`) and **gates provisioning** (`/api/provision/start` rejects unverified;
-`/api/provision` returns `kind:"unverified"`). The earlier `orgs.verify_token`/`domain_verified_at`
-columns are superseded (unused).
+`/api/provision` returns `kind:"unverified"`). `isDomainVerified()` is OR'd: the DB/DNS `verified_at`
+**or** the on-chain CRE result (`DomainVerifier.isVerified` at `DOMAIN_VERIFIER_ADDRESS`, read via
+`getPublicClient`, best-effort) — so a DON-verified domain gates the app even without the DNS row. The
+earlier `orgs.verify_token`/`domain_verified_at` columns are superseded (unused).
 
 **CRE layer (prize, in `ENSv2_subname_manager/`):** the verifiable version of the DNS check — a
 Chainlink CRE TS workflow (`@chainlink/cre-sdk@1.11.0`, scaffolded by `cre init` into a SEPARATE
