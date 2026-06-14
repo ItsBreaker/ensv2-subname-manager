@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
     const body = (await req.json().catch(() => ({}))) as { parent?: unknown };
     const parent = normalizeParentName(typeof body.parent === "string" ? body.parent : "");
-    if (!parent) throw new HttpError(400, "Provide your organization's ENS name (e.g. acme.eth).");
+    if (!parent) throw new HttpError(400, "Provide your organization's ENS name (e.g. org.eth).");
     const parentLabel = extractLabel(parent); // validates a 2LD .eth name
 
     const pub = getPublicClient();

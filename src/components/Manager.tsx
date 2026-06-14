@@ -127,7 +127,7 @@ export function Manager({
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
   const subgroups = orgState.loading ? [] : orgState.subgroups;
   const allNames = orgState.loading ? [] : orgState.names;
-  // The parent the chosen subgroup (or the org root) issues under, e.g. eng.acme.eth or acme.eth.
+  // The parent the chosen subgroup (or the org root) issues under, e.g. eng.org.eth or org.eth.
   const claimParent = org ? (subgroup ? `${subgroup}.${org.parent}` : org.parent) : "";
 
   const handleIssue = useCallback(

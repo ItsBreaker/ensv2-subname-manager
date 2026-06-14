@@ -45,7 +45,7 @@ export function AdoptParent({ onAdopted }: { onAdopted: () => void }) {
     setDone(false);
     const name = parent.trim().toLowerCase();
     if (!name.endsWith(".eth") || name.split(".").length !== 2) {
-      setError("Enter a second-level .eth name you own, e.g. acme.eth.");
+      setError("Enter a second-level .eth name you own, e.g. org.eth.");
       return;
     }
     const walletAddr = selected || externalWallets[0]?.address;
@@ -160,7 +160,7 @@ export function AdoptParent({ onAdopted }: { onAdopted: () => void }) {
           style={{ flex: "1 1 200px" }}
           value={parent}
           onChange={(e) => setParent(e.target.value.toLowerCase().replace(/[^a-z0-9.-]/g, ""))}
-          placeholder="acme.eth"
+          placeholder="org.eth"
           spellCheck={false}
         />
         <button

@@ -1,10 +1,10 @@
 /**
  * Named sub-namespaces ("subgroups") for org subname issuance.
  *
- * A subgroup is a nested name like `eng.acme.eth` that has its OWN UserRegistry subregistry, into
- * which members are issued (`alice.eng.acme.eth`). It lets an org partition its namespace and
+ * A subgroup is a nested name like `eng.org.eth` that has its OWN UserRegistry subregistry, into
+ * which members are issued (`alice.eng.org.eth`). It lets an org partition its namespace and
  * delegate issuance per branch: a subgroup's manager holds ROLE_REGISTRAR on that subgroup's
- * registry only — they can mint under `eng.acme.eth` but not under the org root or sibling subgroups.
+ * registry only — they can mint under `eng.org.eth` but not under the org root or sibling subgroups.
  *
  * The machinery is the same EAC/UserRegistry pattern as the org parent, just one level deeper. The
  * functions here generalize subregistry.ts/issuer.ts (which target the root .eth PermissionedRegistry)
@@ -162,11 +162,11 @@ export function hasRolesIn(
 }
 
 export interface CreateSubgroupResult {
-  fqdn: string; // eng.acme.eth
-  parent: string; // acme.eth
+  fqdn: string; // eng.org.eth
+  parent: string; // org.eth
   subgroupLabel: string; // eng
-  parentRegistry: Address; // acme.eth's UserRegistry
-  childRegistry: Address; // eng.acme.eth's UserRegistry
+  parentRegistry: Address; // org.eth's UserRegistry
+  childRegistry: Address; // eng.org.eth's UserRegistry
   manager?: Address;
   created: boolean; // false if it already existed (idempotent no-op)
   txs: { deploy?: Hex; register?: Hex; setSubregistry?: Hex; grant?: Hex };
@@ -190,10 +190,10 @@ export async function createSubgroup(
   const manager = args.manager ? getAddress(args.manager) : undefined;
   const txs: CreateSubgroupResult["txs"] = {};
 
-  // 1. The org parent must have a subregistry (acme.eth's UserRegistry). Platform holds ALL_ROLES.
+  // 1. The org parent must have a subregistry (org.eth's UserRegistry). Platform holds ALL_ROLES.
   const { subregistry: parentRegistry } = await ensureParentSubregistry(publicClient, walletClient, parent);
 
-  // 2. Deploy the subgroup's own UserRegistry (eng.acme.eth) — idempotent on the predicted address.
+  // 2. Deploy the subgroup's own UserRegistry (eng.org.eth) — idempotent on the predicted address.
   const deployed = await deployUserRegistry(publicClient, walletClient, { name: fqdn });
   const childRegistry = deployed.registry;
   if (deployed.hash) {
@@ -250,7 +250,7 @@ export async function createSubgroup(
 }
 
 export interface IssueUnderSubgroupResult {
-  fqdn: string; // alice.eng.acme.eth
+  fqdn: string; // alice.eng.org.eth
   childRegistry: Address;
   txHash: Hex;
 }

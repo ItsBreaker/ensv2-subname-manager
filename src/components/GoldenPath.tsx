@@ -50,7 +50,7 @@ const buttonBase: React.CSSProperties = {
 const EXAMPLES = [
   {
     title: "One name, paid everywhere",
-    body: "Share you.acme.eth instead of a 42-character address. Friends, clients, or your DAO can send you funds without copying a hex string.",
+    body: "Share you.org.eth instead of a 42-character address. Friends, clients, or your DAO can send you funds without copying a hex string.",
   },
   {
     title: "Proof you belong",
@@ -65,6 +65,19 @@ const EXAMPLES = [
 function Landing({ onPick }: { onPick: (m: Mode) => void }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/ensv2_subname_manager_banner.png"
+        alt="ENS Subname Manager"
+        style={{
+          width: "100%",
+          height: "auto",
+          maxHeight: 260,
+          objectFit: "cover",
+          borderRadius: 18,
+          border: "1px solid var(--line)",
+        }}
+      />
       <section>
         <p
           style={{
@@ -82,7 +95,7 @@ function Landing({ onPick }: { onPick: (m: Mode) => void }) {
         </h1>
         <p style={{ color: "var(--muted)", fontSize: 18, maxWidth: "62ch", margin: 0 }}>
           Sign in with your email and claim a real ENS name like{" "}
-          <strong style={{ color: "var(--ink)" }}>you.acme.eth</strong>. No seed phrases, no crypto
+          <strong style={{ color: "var(--ink)" }}>you.org.eth</strong>. No seed phrases, no crypto
           knowledge. Every control explains itself in plain language.
         </p>
 

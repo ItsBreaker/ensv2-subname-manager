@@ -52,13 +52,13 @@ export async function POST(req: Request) {
     }
     if (!label) throw new HttpError(400, "Provide a valid label (letters, numbers, hyphens).");
 
-    // Optional: claim under one of the org's subgroups (alice.eng.acme.eth) instead of the root.
+    // Optional: claim under one of the org's subgroups (alice.eng.org.eth) instead of the root.
     const subgroup = subgroupLabel ? await getSubgroup(`${subgroupLabel}.${org.parent}`) : null;
     if (subgroupLabel && !subgroup) {
       throw new HttpError(400, `Subgroup "${subgroupLabel}.${org.parent}" doesn't exist.`);
     }
 
-    const issueParent = subgroup ? subgroup.fqdn : org.parent; // eng.acme.eth or acme.eth
+    const issueParent = subgroup ? subgroup.fqdn : org.parent; // eng.org.eth or org.eth
     const fqdn = `${label}.${issueParent}`;
     const supabase = getSupabase();
 

@@ -659,7 +659,7 @@ export function AdminConsole() {
           <p className={styles.cardText}>
             Pick a name to register for your organization:
             <InfoTip>
-              We turn your email domain into a name (acme.com becomes acme.eth). If it&apos;s taken,
+              We turn your email domain into a name (org.com becomes org.eth). If it&apos;s taken,
               choose an available alternative. Registering takes about a minute.
             </InfoTip>
           </p>

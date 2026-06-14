@@ -10,7 +10,14 @@ export default function Home() {
       <header className="appBar">
         <div className="appBarInner appContainer">
           <span className="brand">
-            <span className="brandDot" aria-hidden="true" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/ensv2_subname_manager_logo.png"
+              alt="ENS Subname Manager logo"
+              width={28}
+              height={28}
+              style={{ borderRadius: 8, display: "block" }}
+            />
             Subname Manager
           </span>
           <a

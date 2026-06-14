@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const sub = names[0] ?? null;
 
     const reservation = await getReservation(member.email);
-    // The org's subgroups (named sub-namespaces) the member may claim under, e.g. eng.acme.eth.
+    // The org's subgroups (named sub-namespaces) the member may claim under, e.g. eng.org.eth.
     const subgroups = org ? await getSubgroups(org.parent) : [];
 
     return NextResponse.json({
