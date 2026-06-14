@@ -55,6 +55,15 @@ export async function getSubgroup(fqdn: string): Promise<Subgroup | null> {
   };
 }
 
+/** Delete a subgroup row by fqdn. The on-chain registry remains (harmless; recreating reattaches). */
+export async function deleteSubgroup(fqdn: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("subgroups")
+    .delete()
+    .eq("fqdn", fqdn.trim().toLowerCase());
+  if (error) throw new Error(`failed to delete subgroup: ${error.message}`);
+}
+
 /** Upsert a subgroup row (idempotent on fqdn). Server-only. */
 export async function upsertSubgroup(args: {
   fqdn: string;
