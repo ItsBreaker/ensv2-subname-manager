@@ -67,6 +67,28 @@ export async function createReservations(
   return data?.length ?? records.length;
 }
 
+/** Delete a single invite (reservation) by email under a parent. */
+export async function deleteReservation(parent: string, email: string): Promise<void> {
+  const { error } = await getSupabase()
+    .from("reservations")
+    .delete()
+    .eq("parent", parent)
+    .eq("email", email.trim().toLowerCase());
+  if (error) throw new Error(`failed to remove invite: ${error.message}`);
+}
+
+/** Delete all UNCLAIMED invites under a parent. Returns the count removed. */
+export async function clearUnclaimedReservations(parent: string): Promise<number> {
+  const { data, error } = await getSupabase()
+    .from("reservations")
+    .delete()
+    .eq("parent", parent)
+    .eq("claimed", false)
+    .select("email");
+  if (error) throw new Error(`failed to clear invites: ${error.message}`);
+  return data?.length ?? 0;
+}
+
 /** List reservations under a parent (for the admin's pending-invites view). */
 export async function getReservations(parent: string): Promise<ReservationRow[]> {
   const { data, error } = await getSupabase()
