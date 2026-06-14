@@ -8,7 +8,7 @@ import { EnsName, GrowthChart, WalletAddress } from "./ui";
 import styles from "./Manager.module.css";
 
 type Member = { fqdn: string; label: string; owner: string; createdAt: string };
-type Invite = { email: string; label: string };
+type Invite = { email: string; label: string; subgroup?: string | null };
 type NameOption = { label: string; fqdn: string; available: boolean };
 type Subgroup = { fqdn: string; label: string; childRegistry: string; manager: string | null };
 
@@ -62,6 +62,7 @@ export function AdminConsole() {
   const [sgManager, setSgManager] = useState("");
   const [sgStatus, setSgStatus] = useState<"idle" | "creating">("idle");
   const [sgMsg, setSgMsg] = useState<string | null>(null);
+  const [importSubgroup, setImportSubgroup] = useState(""); // "" = org root; else a subgroup label
 
   const loadAdmin = useCallback(async () => {
     try {
@@ -305,7 +306,7 @@ export function AdminConsole() {
         const res = await fetch("/api/admin/import", {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-          body: JSON.stringify({ rows }),
+          body: JSON.stringify({ rows, ...(importSubgroup ? { subgroup: importSubgroup } : {}) }),
         });
         const data = (await res.json()) as { ok?: boolean; error?: string; count?: number };
         if (res.ok && data.ok) {
@@ -320,7 +321,7 @@ export function AdminConsole() {
         setImporting(false);
       }
     },
-    [getAccessToken, loadAdmin],
+    [getAccessToken, loadAdmin, importSubgroup],
   );
 
   const handleRemove = useCallback(
@@ -474,9 +475,29 @@ export function AdminConsole() {
             Invite members (CSV)
             <InfoTip>
               Upload a CSV with one email per row (optionally email,label). Each becomes a reserved
-              name your members can claim when they sign in.
+              name your members can claim when they sign in. Choose a group to drop the whole batch into
+              that subgroup (e.g. student.{admin.parent}).
             </InfoTip>
           </div>
+
+          {subgroups.length > 0 && (
+            <label className={styles.field} style={{ marginBottom: 10, maxWidth: 360 }}>
+              <span className={styles.fieldLabel}>Add this batch to</span>
+              <select
+                className={styles.input}
+                style={{ width: "100%" }}
+                value={importSubgroup}
+                onChange={(e) => setImportSubgroup(e.target.value)}
+              >
+                <option value="">{admin.parent} (organization root)</option>
+                {subgroups.map((s) => (
+                  <option key={s.fqdn} value={s.label}>
+                    {s.fqdn}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {admin.invites.length > 0 && (
             <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
@@ -493,7 +514,7 @@ export function AdminConsole() {
                   }}
                 >
                   <span className={styles.mono}>
-                    {i.label}.{admin.parent}
+                    {i.label}.{i.subgroup ? `${i.subgroup}.` : ""}{admin.parent}
                   </span>
                   <span style={{ color: "var(--muted, #6b7280)" }}>{i.email} · invited</span>
                 </li>

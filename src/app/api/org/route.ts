@@ -41,7 +41,9 @@ export async function GET(req: Request) {
       subgroups: subgroups.map((s) => ({ label: s.label, fqdn: s.fqdn })),
       subname: sub?.fqdn ?? null,
       names,
-      reservation: reservation ? { parent: reservation.parent, label: reservation.label } : null,
+      reservation: reservation
+        ? { parent: reservation.parent, label: reservation.label, subgroup: reservation.subgroup }
+        : null,
     });
   } catch (e) {
     return toErrorResponse(e);

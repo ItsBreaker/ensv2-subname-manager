@@ -26,7 +26,9 @@ export async function GET(req: Request) {
       ok: true,
       org: { parent: org.parent, subregistry: org.subregistry },
       members,
-      invites: invites.filter((i) => !i.claimed).map((i) => ({ email: i.email, label: i.label })),
+      invites: invites
+        .filter((i) => !i.claimed)
+        .map((i) => ({ email: i.email, label: i.label, subgroup: i.subgroup })),
       verification: { domain: org.domain, verified },
     });
   } catch (e) {

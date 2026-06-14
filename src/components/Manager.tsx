@@ -17,7 +17,7 @@ function defaultLabel(email: string | null): string {
 type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
 
-type Reservation = { parent: string; label: string };
+type Reservation = { parent: string; label: string; subgroup?: string | null };
 type SubgroupOption = { label: string; fqdn: string };
 type ClaimedName = { fqdn: string; parent: string };
 
@@ -111,6 +111,17 @@ export function Manager({
   useEffect(() => {
     void loadOrg();
   }, [loadOrg]);
+
+  // If this person was invited (CSV reservation), pre-fill their reserved name + subgroup once loaded.
+  const prefilledRef = useRef(false);
+  useEffect(() => {
+    if (orgState.loading || prefilledRef.current) return;
+    if (orgState.reservation) {
+      setLabel(orgState.reservation.label);
+      setSubgroup(orgState.reservation.subgroup ?? "");
+    }
+    prefilledRef.current = true;
+  }, [orgState]);
 
   // When the user connects a NEW external wallet, switch the recipient to it automatically.
   const prevExternalCount = useRef(0);
@@ -421,7 +432,8 @@ export function Manager({
           <p className={styles.cardText}>
             You&apos;ve been invited to claim{" "}
             <strong>
-              {reservation.label}.{reservation.parent}
+              {reservation.label}.{reservation.subgroup ? `${reservation.subgroup}.` : ""}
+              {reservation.parent}
             </strong>
             . It&apos;ll be set up to resolve to your wallet.
           </p>

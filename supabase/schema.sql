@@ -63,12 +63,15 @@ create table if not exists public.reservations (
   parent      text not null,
   email       text not null,
   label       text not null,
+  subgroup    text,                                     -- optional subgroup label (e.g. 'student'); null = org root
   claimed     boolean not null default false,
   created_at  timestamptz not null default now(),
   primary key (parent, email),
   unique (parent, label)
 );
 create index if not exists reservations_email_idx on public.reservations (email);
+--   If your reservations table predates the subgroup column, run:
+--     alter table public.reservations add column if not exists subgroup text;
 
 -- 2c) Domain verifications: an admin proves control of their email DOMAIN via a DNS-TXT challenge.
 --     Verification is required before they can register (provision) their org's parent name.
