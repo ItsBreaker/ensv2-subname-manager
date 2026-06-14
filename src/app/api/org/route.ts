@@ -18,13 +18,15 @@ export async function GET(req: Request) {
     const member = await verifyMember(req);
     const org = await getOrgByDomain(member.domain);
 
-    const { data: sub } = await getSupabase()
+    // ALL names this user has claimed (across orgs) — they may have signed into multiple with the
+    // same email. Keyed by Privy userId, so it follows the person, not a single org.
+    const { data: claimed } = await getSupabase()
       .from("subnames")
-      .select("fqdn")
+      .select("fqdn, parent, created_at")
       .eq("claimed_by", member.userId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order("created_at", { ascending: false });
+    const names = (claimed ?? []).map((r) => ({ fqdn: r.fqdn, parent: r.parent }));
+    const sub = names[0] ?? null;
 
     const reservation = await getReservation(member.email);
     // The org's subgroups (named sub-namespaces) the member may claim under, e.g. eng.acme.eth.
@@ -38,6 +40,7 @@ export async function GET(req: Request) {
       org: org ? { parent: org.parent, issuance: org.issuance } : null,
       subgroups: subgroups.map((s) => ({ label: s.label, fqdn: s.fqdn })),
       subname: sub?.fqdn ?? null,
+      names,
       reservation: reservation ? { parent: reservation.parent, label: reservation.label } : null,
     });
   } catch (e) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AdoptParent } from "./AdoptParent";
 import { InfoTip } from "./InfoTip";
+import { EnsName, GrowthChart, WalletAddress } from "./ui";
 import styles from "./Manager.module.css";
 
 type Member = { fqdn: string; label: string; owner: string; createdAt: string };
@@ -36,10 +37,6 @@ type VerifyFlow =
   | { status: "idle" }
   | { status: "record"; value: string; domain: string }
   | { status: "checking"; value: string; domain: string };
-
-function shortAddress(a: string): string {
-  return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
 
 /**
  * The admin surface. Manages an org (members, invites, CSV import, verified badge) if one exists,
@@ -250,7 +247,7 @@ export function AdminConsole() {
         // verified badge flips (for orgs that pre-date the verification gate).
         await Promise.all([loadProvision(), loadAdmin()]);
       } else {
-        setVerifyMsg(data.error ?? "TXT record not found yet. DNS can take a few minutes — try again shortly.");
+        setVerifyMsg(data.error ?? "TXT record not found yet. DNS can take a few minutes. Try again shortly.");
         setVerify({ status: "record", value: verify.value, domain: verify.domain });
       }
     } catch (e) {
@@ -414,6 +411,22 @@ export function AdminConsole() {
           </div>
         )}
 
+        <p className={styles.cardText} style={{ marginTop: 0 }}>
+          Thank you for setting up <strong>{admin.parent}</strong> as your organization.
+          <InfoTip>
+            You control this org&apos;s ENS name. Members claim real subnames under it that resolve to
+            their wallets; you can group them, invite by CSV, and revoke names on-chain at any time.
+          </InfoTip>
+        </p>
+
+        <div className={styles.cardLabel}>
+          Members joining
+          <InfoTip>Total members over time, from when each person claimed their name.</InfoTip>
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <GrowthChart dates={admin.members.map((m) => m.createdAt)} />
+        </div>
+
         <div className={styles.cardLabel}>
           Members of {admin.parent}
           <InfoTip>
@@ -440,11 +453,9 @@ export function AdminConsole() {
                   borderTop: "1px solid var(--line, #e6e8eb)",
                 }}
               >
-                <span>
-                  <span className={styles.mono}>{m.fqdn}</span>
-                  <span style={{ color: "var(--muted, #6b7280)", fontSize: 12, marginLeft: 8 }}>
-                    {shortAddress(m.owner)}
-                  </span>
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <EnsName name={m.fqdn} />
+                  <WalletAddress address={m.owner} style={{ fontSize: 11, color: "var(--muted)" }} />
                 </span>
                 <button
                   className={styles.ghostButton}
@@ -515,7 +526,7 @@ export function AdminConsole() {
             <InfoTip>
               A subgroup is a named branch of your organization, like eng.{admin.parent}. Members can
               claim names under it (alice.eng.{admin.parent}). You can hand a subgroup to a manager
-              wallet — they can issue names in that branch only, never your root or other subgroups.
+              wallet, and they can issue names in that branch only, never your root or other subgroups.
             </InfoTip>
           </div>
 
@@ -535,8 +546,14 @@ export function AdminConsole() {
                   }}
                 >
                   <span className={styles.mono}>{s.fqdn}</span>
-                  <span style={{ color: "var(--muted, #6b7280)" }}>
-                    {s.manager ? `manager ${shortAddress(s.manager)}` : "no manager"}
+                  <span style={{ color: "var(--muted, #6b7280)", display: "inline-flex", gap: 4 }}>
+                    {s.manager ? (
+                      <>
+                        manager <WalletAddress address={s.manager} style={{ fontSize: 12 }} />
+                      </>
+                    ) : (
+                      "no manager"
+                    )}
                   </span>
                 </li>
               ))}
@@ -599,7 +616,7 @@ export function AdminConsole() {
         <>
           <p className={styles.cardText}>
             First, prove you control <strong>{prov.domain}</strong>. This makes you the
-            organization&apos;s authority — required before registering its name.
+            organization&apos;s authority, required before registering its name.
             <InfoTip>
               Add a DNS TXT record to your domain. Controlling the domain (not just one mailbox) is
               what authorizes you to register and manage the org&apos;s name.
