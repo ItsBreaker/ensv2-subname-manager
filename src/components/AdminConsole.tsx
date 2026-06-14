@@ -63,6 +63,8 @@ export function AdminConsole() {
   const [sgStatus, setSgStatus] = useState<"idle" | "creating">("idle");
   const [sgMsg, setSgMsg] = useState<string | null>(null);
   const [importSubgroup, setImportSubgroup] = useState(""); // "" = org root; else a subgroup label
+  const [removingInvite, setRemovingInvite] = useState<string | null>(null);
+  const [clearingInvites, setClearingInvites] = useState(false);
 
   const loadAdmin = useCallback(async () => {
     try {
@@ -350,6 +352,39 @@ export function AdminConsole() {
     [getAccessToken, loadAdmin],
   );
 
+  const handleRemoveInvite = useCallback(
+    async (email: string) => {
+      setRemovingInvite(email);
+      try {
+        const token = await getAccessToken();
+        const res = await fetch("/api/admin/invite/remove", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+          body: JSON.stringify({ email }),
+        });
+        if (res.ok) await loadAdmin();
+      } finally {
+        setRemovingInvite(null);
+      }
+    },
+    [getAccessToken, loadAdmin],
+  );
+
+  const handleClearInvites = useCallback(async () => {
+    setClearingInvites(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/admin/invite/remove", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ all: true }),
+      });
+      if (res.ok) await loadAdmin();
+    } finally {
+      setClearingInvites(false);
+    }
+  }, [getAccessToken, loadAdmin]);
+
   if (admin.phase === "loading") {
     return (
       <section className={styles.card}>
@@ -507,26 +542,49 @@ export function AdminConsole() {
           )}
 
           {admin.invites.length > 0 && (
-            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
-              {admin.invites.map((i) => (
-                <li
-                  key={i.email}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    padding: "7px 0",
-                    borderTop: "1px solid var(--line, #e6e8eb)",
-                    fontSize: 13,
-                  }}
+            <>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
+                <button
+                  className={styles.ghostButton}
+                  onClick={handleClearInvites}
+                  disabled={clearingInvites}
+                  style={{ padding: "5px 10px", fontSize: 12 }}
                 >
-                  <span className={styles.mono}>
-                    {i.label}.{i.subgroup ? `${i.subgroup}.` : ""}{admin.parent}
-                  </span>
-                  <span style={{ color: "var(--muted, #6b7280)" }}>{i.email} · invited</span>
-                </li>
-              ))}
-            </ul>
+                  {clearingInvites ? "Clearing…" : `Clear all (${admin.invites.length})`}
+                </button>
+              </div>
+              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
+                {admin.invites.map((i) => (
+                  <li
+                    key={i.email}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      padding: "7px 0",
+                      borderTop: "1px solid var(--line, #e6e8eb)",
+                      fontSize: 13,
+                    }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span className={styles.mono}>
+                        {i.label}.{i.subgroup ? `${i.subgroup}.` : ""}{admin.parent}
+                      </span>
+                      <span style={{ color: "var(--muted, #6b7280)", marginLeft: 8 }}>{i.email} · invited</span>
+                    </span>
+                    <button
+                      className={styles.ghostButton}
+                      onClick={() => handleRemoveInvite(i.email)}
+                      disabled={removingInvite === i.email}
+                      style={{ padding: "5px 10px", fontSize: 12 }}
+                    >
+                      {removingInvite === i.email ? "Removing…" : "Remove"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
 
           <label className={styles.ghostButton} style={{ display: "inline-block" }}>
