@@ -21,6 +21,8 @@ type IssueStatus = "idle" | "issuing" | "done" | "error";
 type IssueResult = { fqdn: string; txHash: string };
 
 type Reservation = { parent: string; label: string };
+type SubgroupOption = { label: string; fqdn: string };
+
 type OrgState =
   | { loading: true }
   | {
@@ -29,6 +31,7 @@ type OrgState =
       isPublicDomain: boolean;
       subname: string | null;
       reservation: Reservation | null;
+      subgroups: SubgroupOption[];
     };
 
 const PROFILE_FIELDS: { key: string; label: string; placeholder: string }[] = [
@@ -68,6 +71,7 @@ export function Manager({
   const [result, setResult] = useState<IssueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showClaim, setShowClaim] = useState(false);
+  const [subgroup, setSubgroup] = useState(""); // "" = the org root; else a subgroup label
 
   const [profile, setProfile] = useState<Record<string, string>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -83,6 +87,7 @@ export function Manager({
         isPublicDomain?: boolean;
         subname?: string | null;
         reservation?: Reservation | null;
+        subgroups?: SubgroupOption[];
       };
       if (res.ok && data.ok) {
         setOrgState({
@@ -91,12 +96,13 @@ export function Manager({
           isPublicDomain: !!data.isPublicDomain,
           subname: data.subname ?? null,
           reservation: data.reservation ?? null,
+          subgroups: data.subgroups ?? [],
         });
       } else {
-        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null });
+        setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [] });
       }
     } catch {
-      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null });
+      setOrgState({ loading: false, org: null, isPublicDomain: false, subname: null, reservation: null, subgroups: [] });
     }
   }, [getAccessToken]);
 
@@ -107,6 +113,9 @@ export function Manager({
   const org = orgState.loading ? null : orgState.org;
   const reservation = orgState.loading ? null : orgState.reservation;
   const myName = result?.fqdn ?? (orgState.loading ? null : orgState.subname);
+  const subgroups = orgState.loading ? [] : orgState.subgroups;
+  // The parent the chosen subgroup (or the org root) issues under, e.g. eng.acme.eth or acme.eth.
+  const claimParent = org ? (subgroup ? `${subgroup}.${org.parent}` : org.parent) : "";
 
   const handleIssue = useCallback(
     async (parentOverride?: string) => {
@@ -119,7 +128,11 @@ export function Manager({
         const res = await fetch("/api/issue", {
           method: "POST",
           headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-          body: JSON.stringify({ label, ...(parentOverride ? { parent: parentOverride } : {}) }),
+          body: JSON.stringify({
+            label,
+            ...(parentOverride ? { parent: parentOverride } : {}),
+            ...(subgroup ? { subgroup } : {}),
+          }),
         });
         const data = (await res.json()) as { ok?: boolean; error?: string } & Partial<IssueResult>;
         if (!res.ok || !data.ok || !data.fqdn || !data.txHash) {
@@ -133,7 +146,7 @@ export function Manager({
         setStatus("error");
       }
     },
-    [label, getAccessToken],
+    [label, subgroup, getAccessToken],
   );
 
   const handleSaveProfile = useCallback(async () => {
@@ -374,6 +387,30 @@ export function Manager({
             Your email domain <code>{verifiedEmailDomain}</code> is linked to{" "}
             <strong>{org.parent}</strong>. You can claim your own name under it.
           </p>
+          {subgroups.length > 0 && (
+            <label className={styles.field} style={{ marginBottom: 10 }}>
+              <span className={styles.fieldLabel}>
+                Group
+                <InfoTip>
+                  Claim under the whole organization, or under one of its groups (a named branch like
+                  eng.{org.parent}). Your admin sets these up.
+                </InfoTip>
+              </span>
+              <select
+                className={styles.input}
+                style={{ width: "100%" }}
+                value={subgroup}
+                onChange={(e) => setSubgroup(e.target.value)}
+              >
+                <option value="">{org.parent} (whole organization)</option>
+                {subgroups.map((s) => (
+                  <option key={s.fqdn} value={s.label}>
+                    {s.fqdn}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <div className={styles.issueRow}>
             <div className={styles.inputGroup}>
               <input
@@ -383,7 +420,7 @@ export function Manager({
                 placeholder="yourname"
                 spellCheck={false}
               />
-              <span className={styles.suffix}>.{org.parent}</span>
+              <span className={styles.suffix}>.{claimParent}</span>
             </div>
             <button
               className={styles.primaryButton}
@@ -393,8 +430,8 @@ export function Manager({
               {status === "issuing" ? "Claiming…" : "Claim my name"}
             </button>
             <InfoTip>
-              Creates {label ? `${label}.${org.parent}` : "alice.yourorg.eth"} as a name you fully own
-              on the blockchain, set up to resolve to your wallet. Your organization covers the fee.
+              Creates {label ? `${label}.${claimParent}` : `alice.${claimParent}`} as a name you fully
+              own on the blockchain, set up to resolve to your wallet. Your organization covers the fee.
             </InfoTip>
           </div>
           {issueError}

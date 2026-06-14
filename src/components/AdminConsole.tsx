@@ -8,6 +8,7 @@ import styles from "./Manager.module.css";
 type Member = { fqdn: string; label: string; owner: string; createdAt: string };
 type Invite = { email: string; label: string };
 type NameOption = { label: string; fqdn: string; available: boolean };
+type Subgroup = { fqdn: string; label: string; childRegistry: string; manager: string | null };
 
 type AdminState =
   | { phase: "loading" }
@@ -58,6 +59,12 @@ export function AdminConsole() {
   const [verify, setVerify] = useState<VerifyFlow>({ status: "idle" });
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
 
+  const [subgroups, setSubgroups] = useState<Subgroup[]>([]);
+  const [sgLabel, setSgLabel] = useState("");
+  const [sgManager, setSgManager] = useState("");
+  const [sgStatus, setSgStatus] = useState<"idle" | "creating">("idle");
+  const [sgMsg, setSgMsg] = useState<string | null>(null);
+
   const loadAdmin = useCallback(async () => {
     try {
       const token = await getAccessToken();
@@ -89,6 +96,52 @@ export function AdminConsole() {
   useEffect(() => {
     void loadAdmin();
   }, [loadAdmin]);
+
+  const loadSubgroups = useCallback(async () => {
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/admin/subgroup", { headers: { authorization: `Bearer ${token}` } });
+      const data = (await res.json()) as { ok?: boolean; subgroups?: Subgroup[] };
+      if (res.ok && data.ok) setSubgroups(data.subgroups ?? []);
+    } catch {
+      /* non-fatal: subgroups are an optional admin tool */
+    }
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    if (admin.phase === "managed") void loadSubgroups();
+  }, [admin.phase, loadSubgroups]);
+
+  const handleCreateSubgroup = useCallback(async () => {
+    const label = sgLabel.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!label) {
+      setSgMsg("Enter a subgroup name (letters, numbers, hyphens).");
+      return;
+    }
+    setSgStatus("creating");
+    setSgMsg(null);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch("/api/admin/subgroup", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ label, ...(sgManager.trim() ? { manager: sgManager.trim() } : {}) }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string; subgroup?: { fqdn: string } };
+      if (res.ok && data.ok) {
+        setSgMsg(`Created ${data.subgroup?.fqdn}.`);
+        setSgLabel("");
+        setSgManager("");
+        await loadSubgroups();
+      } else {
+        setSgMsg(data.error ?? "Couldn't create the subgroup.");
+      }
+    } catch (e) {
+      setSgMsg(e instanceof Error ? e.message : "Couldn't create the subgroup.");
+    } finally {
+      setSgStatus("idle");
+    }
+  }, [sgLabel, sgManager, getAccessToken, loadSubgroups]);
 
   const loadProvision = useCallback(async () => {
     setProv({ phase: "loading" });
@@ -452,6 +505,71 @@ export function AdminConsole() {
           </label>
           {importMsg && (
             <span style={{ marginLeft: 10, fontSize: 13, color: "var(--muted, #6b7280)" }}>{importMsg}</span>
+          )}
+        </div>
+
+        <div style={{ borderTop: "1px solid var(--line, #e6e8eb)", marginTop: 16, paddingTop: 14 }}>
+          <div className={styles.cardLabel}>
+            Subgroups
+            <InfoTip>
+              A subgroup is a named branch of your organization, like eng.{admin.parent}. Members can
+              claim names under it (alice.eng.{admin.parent}). You can hand a subgroup to a manager
+              wallet — they can issue names in that branch only, never your root or other subgroups.
+            </InfoTip>
+          </div>
+
+          {subgroups.length > 0 && (
+            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
+              {subgroups.map((s) => (
+                <li
+                  key={s.fqdn}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "9px 0",
+                    borderTop: "1px solid var(--line, #e6e8eb)",
+                    fontSize: 13,
+                  }}
+                >
+                  <span className={styles.mono}>{s.fqdn}</span>
+                  <span style={{ color: "var(--muted, #6b7280)" }}>
+                    {s.manager ? `manager ${shortAddress(s.manager)}` : "no manager"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <span
+              className={styles.mono}
+              style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--line, #e6e8eb)", borderRadius: 8, overflow: "hidden" }}
+            >
+              <input
+                value={sgLabel}
+                onChange={(e) => setSgLabel(e.target.value)}
+                placeholder="eng"
+                style={{ border: "none", outline: "none", padding: "8px 4px 8px 10px", width: 90, font: "inherit" }}
+              />
+              <span style={{ color: "var(--muted, #6b7280)", paddingRight: 10 }}>.{admin.parent}</span>
+            </span>
+            <input
+              value={sgManager}
+              onChange={(e) => setSgManager(e.target.value)}
+              placeholder="manager wallet 0x… (optional)"
+              className={styles.mono}
+              style={{ flex: "1 1 240px", minWidth: 200, border: "1px solid var(--line, #e6e8eb)", borderRadius: 8, padding: "8px 10px", font: "inherit" }}
+            />
+            <button className={styles.primaryButton} onClick={handleCreateSubgroup} disabled={sgStatus === "creating"}>
+              {sgStatus === "creating" ? "Creating…" : "Create subgroup"}
+            </button>
+          </div>
+          {sgMsg && (
+            <p className={styles.cardText} style={{ margin: "8px 0 0", color: "var(--muted, #6b7280)", fontSize: 13 }}>
+              {sgMsg}
+            </p>
           )}
         </div>
       </section>

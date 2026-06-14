@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyMember, toErrorResponse } from "@/lib/auth";
 import { getOrgByDomain, isPublicEmailDomain } from "@/lib/orgs";
 import { getReservation } from "@/lib/reservations";
+import { getSubgroups } from "@/lib/subgroups";
 import { getSupabase } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -26,6 +27,8 @@ export async function GET(req: Request) {
       .maybeSingle();
 
     const reservation = await getReservation(member.email);
+    // The org's subgroups (named sub-namespaces) the member may claim under, e.g. eng.acme.eth.
+    const subgroups = org ? await getSubgroups(org.parent) : [];
 
     return NextResponse.json({
       ok: true,
@@ -33,6 +36,7 @@ export async function GET(req: Request) {
       address: member.wallet,
       isPublicDomain: isPublicEmailDomain(member.domain),
       org: org ? { parent: org.parent, issuance: org.issuance } : null,
+      subgroups: subgroups.map((s) => ({ label: s.label, fqdn: s.fqdn })),
       subname: sub?.fqdn ?? null,
       reservation: reservation ? { parent: reservation.parent, label: reservation.label } : null,
     });

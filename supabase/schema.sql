@@ -79,15 +79,31 @@ create table if not exists public.domain_verifications (
   created_at  timestamptz not null default now()
 );
 
+-- 2d) Subgroups: named sub-namespaces (eng.acme.eth) under an org parent, each with its OWN
+--     UserRegistry subregistry and an optional delegated manager (holds ROLE_REGISTRAR on that
+--     subgroup's registry only — can issue under eng.acme.eth, not the org root or siblings).
+create table if not exists public.subgroups (
+  fqdn            text primary key,                       -- 'eng.democlub.eth'
+  parent          text not null,                          -- 'democlub.eth'
+  label           text not null,                          -- 'eng'
+  child_registry  text not null,                          -- deployed subgroup UserRegistry addr
+  manager         text,                                   -- delegated manager wallet (optional)
+  admin_email     text,                                   -- who created it (bootstrap authority)
+  created_at      timestamptz not null default now()
+);
+create index if not exists subgroups_parent_idx on public.subgroups (parent);
+
 -- 3) Lock down: RLS on, privileges granted only to the server (service_role).
 alter table public.orgs enable row level security;
 alter table public.subnames enable row level security;
 alter table public.reservations enable row level security;
 alter table public.domain_verifications enable row level security;
+alter table public.subgroups enable row level security;
 grant all on table public.orgs to service_role;
 grant all on table public.subnames to service_role;
 grant all on table public.reservations to service_role;
 grant all on table public.domain_verifications to service_role;
+grant all on table public.subgroups to service_role;
 -- (No policies for anon/authenticated => no browser access. service_role bypasses RLS.)
 
 -- 4) Seed current enrollments (edit freely).
